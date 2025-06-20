@@ -39,7 +39,9 @@ export default function Login() {
         title: "Success",
         description: "Logged in successfully",
       });
-      setLocation("/");
+      
+      // Force a page reload to ensure auth state is properly updated
+      window.location.href = "/";
     } catch (error) {
       toast({
         title: "Error",

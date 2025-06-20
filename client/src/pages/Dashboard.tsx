@@ -5,6 +5,7 @@ import { useLocation } from "wouter";
 import Sidebar from "../components/Sidebar";
 import StatsCards from "../components/StatsCards";
 import JobsTable from "../components/JobsTable";
+import GanttChart from "../components/GanttChart";
 import JobDetailModal from "../components/JobDetailModal";
 
 export default function Dashboard() {
@@ -39,8 +40,11 @@ export default function Dashboard() {
 
         {/* Main Content */}
         <main className="p-6">
-          <StatsCards />
-          <JobsTable onJobSelect={(job) => setSelectedJobId(job.id)} />
+          <div className="space-y-6">
+            <StatsCards />
+            <GanttChart />
+            <JobsTable onJobSelect={(job) => setSelectedJobId(job.id)} />
+          </div>
         </main>
       </div>
 

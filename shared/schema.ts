@@ -17,7 +17,7 @@ export const jobs = sqliteTable("jobs", {
   dateDue: text("date_due"),
   priority: integer("priority").notNull(), // 1-5
   status: text("status").notNull(), // queued, running, done, failed
-  components: text("components", { mode: "json" }).$type<string[]>().default([]),
+  components: text("components", { mode: "json" }).$type<string[]>(),
   createdAt: text("created_at").default("CURRENT_TIMESTAMP"),
   updatedAt: text("updated_at"),
 });

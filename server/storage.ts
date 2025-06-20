@@ -148,7 +148,7 @@ export class DatabaseStorage implements IStorage {
       dateDue: job.dateDue || null,
       priority: job.priority,
       status: job.status,
-      components: Array.isArray(job.components) ? job.components : null,
+      components: job.components as string[] || [],
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
@@ -163,7 +163,7 @@ export class DatabaseStorage implements IStorage {
     const updatedJob = {
       ...jobs[jobIndex],
       ...updates,
-      components: Array.isArray(updates.components) ? updates.components : jobs[jobIndex].components,
+      components: (updates.components as string[]) || jobs[jobIndex].components,
       updatedAt: new Date().toISOString()
     };
     jobs[jobIndex] = updatedJob;

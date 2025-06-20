@@ -56,6 +56,15 @@ export default function NewRequest() {
   });
 
   const handleNext = () => {
+    if (currentStep === 3) {
+      // Validate components before proceeding
+      if (selectedComponents.length === 0) {
+        form.setError("components", { message: "At least one component must be selected" });
+        return;
+      }
+      form.setValue("components", selectedComponents);
+    }
+    
     if (currentStep < steps.length - 1) {
       setCurrentStep(currentStep + 1);
     }
@@ -68,9 +77,11 @@ export default function NewRequest() {
   };
 
   const handleComponentSelect = (componentId: string) => {
-    const newComponents = [...selectedComponents, componentId];
-    setSelectedComponents(newComponents);
-    form.setValue("components", newComponents);
+    if (!selectedComponents.includes(componentId)) {
+      const newComponents = [...selectedComponents, componentId];
+      setSelectedComponents(newComponents);
+      form.setValue("components", newComponents);
+    }
   };
 
   const handleComponentDeselect = (componentId: string) => {
@@ -83,7 +94,7 @@ export default function NewRequest() {
     try {
       await createJobMutation.mutateAsync({
         ...data,
-        components: JSON.stringify(data.components),
+        components: data.components,
         status: "queued",
       });
       toast({

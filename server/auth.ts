@@ -3,6 +3,7 @@ import { storage } from "./storage";
 export interface AuthUser {
   id: number;
   username: string;
+  role?: "admin" | "engineer";
 }
 
 export async function authenticateUser(username: string, password: string): Promise<AuthUser | null> {
@@ -23,6 +24,7 @@ export async function authenticateUser(username: string, password: string): Prom
   return {
     id: user.id,
     username: user.username,
+    role: username === "admin" ? "admin" : "engineer",
   };
 }
 

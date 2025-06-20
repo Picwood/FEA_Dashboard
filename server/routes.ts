@@ -101,6 +101,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put("/api/jobs/:id", requireAuth, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
+      const updates = req.body;
+      const job = await storage.updateJob(id, updates);
+      if (!job) {
+        return res.status(404).json({ message: "Job not found" });
+      }
+      res.json(job);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to update job" });
+    }
+  });
+
+  app.put("/api/jobs/:id", requireAuth, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
       const updates = insertJobSchema.partial().parse(req.body);
       const job = await storage.updateJob(id, updates);
       if (!job) {
