@@ -1,0 +1,156 @@
+You are a senior full‑stack engineer hired to build a **local web app** that runs on a Raspberry Pi inside a fork‑suspension company’s intranet.  
+The app is a dashboard for FEA simulations (static & fatigue) and a simple 3‑D job‑submission tool.
+
+########################
+### 1. BUSINESS CONTEXT
+########################
+• Company produces bicycle/motorcycle fork suspensions.  
+• FEA team (me) runs static & fatigue analyses on two assemblies:
+  – LOWER: single “monolith” part (stanchions included for fixture only).  
+  – UPPER: three parts (stanchions, crown, steerer).  Simulations are usually run on the full upper, but occasionally on a single part; crown is always present.
+
+• Each simulation job is defined by:
+  – project  (product / fork name)  
+  – bench    (“symmetric‑bending”, “brake‑load”, or *unknown* if not assigned yet)  
+  – type     (“static” | “fatigue”)  
+  – date_request (YYYY‑MM‑DD)  
+  – date_due     (YYYY‑MM‑DD, can be null)  
+  – priority     (integer 1‑5 or LOW/MED/HIGH)  
+  – status       (queued | running | done | failed)  
+  – files        (mesh, .inp, result logs, etc.)
+
+########################
+### 2. TECH CONSTRAINTS
+########################
+• Must run entirely on a Raspberry Pi 4 (8 GB) running Raspberry Pi OS.  
+• Use **Node.js 20 LTS** back‑end with **Express** (lightweight REST API).  
+• Persist data in **SQLite** (file‑based, no separate server).  
+• Front‑end: **React 18 + Vite** with **Three.js/WebGL** for 3‑D.  
+• Styling: TailwindCSS.  
+• Authentication: simple login with hard‑coded bcrypt‑hashed users in SQLite (no external IdP).  
+• No external cloud dependencies—everything local.  
+• License the code MIT.
+
+########################
+### 3. HIGH‑LEVEL FEATURES
+########################
+1. **Dashboard ("/")**  
+   • Table of ongoing & queued simulations with sortable columns (project, bench, type, due, priority, status).  
+   • “+ New request” button.  
+   • Row click → detail drawer with full metadata & links to files.
+
+2. **New Request Wizard ("/new")**  
+   • Step 1: Choose or type *Project* name.  
+   • Step 2: Select *Bench* (dropdown: symmetric‑bending, brake‑load, unknown).  
+   • Step 3: Select *Type* (static | fatigue).  
+   • Step 4: Pick *Component(s)* in 3‑D viewer.  
+        – Load dummy fork model (a STEP file converted to glTF/GLB for Three.js).  
+        – Components individually selectable & highlighted (lower‑monolith, crown, stanchions, steerer).  
+   • Step 5: Dates & priority inputs.  
+   • “Submit” → POST /api/jobs ; status starts as “queued”.
+
+3. **Job Detail ("/job/:id")**  
+   • Metadata panel.  
+   • File upload slots for meshes, .inp, results.  
+   • Status timeline (queued → running → etc.).  
+   • Delete / duplicate buttons.
+
+4. **System Settings ("/admin")** — optional but scaffold routes; credentials: admin/admin.
+
+########################
+### 4. API SPEC (REST)
+########################
+GET    /api/jobs                 → list jobs (query params for status, bench, etc.)  
+POST   /api/jobs                 → create job  
+GET    /api/jobs/:id             → job detail  
+PUT    /api/jobs/:id             → update metadata  
+DELETE /api/jobs/:id             → delete job  
+
+POST   /api/jobs/:id/files       → upload file (multer)  
+GET    /api/files/:fileId        → download
+
+########################
+### 5. DATABASE SCHEMA
+########################
+Table jobs(
+  id           INTEGER PK,
+  project      TEXT,
+  bench        TEXT,
+  type         TEXT,
+  date_request TEXT,
+  date_due     TEXT,
+  priority     INTEGER,
+  status       TEXT,
+  created_at   TEXT DEFAULT CURRENT_TIMESTAMP,
+  updated_at   TEXT
+);
+Table files(
+  id       INTEGER PK,
+  job_id   INTEGER FK -> jobs.id,
+  label    TEXT,           -- e.g., "mesh", "result_log"
+  path     TEXT,
+  mime     TEXT,
+  uploaded_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+Table users(id INTEGER PK, username TEXT UNIQUE, password_hash TEXT);
+
+########################
+### 6. 3‑D VIEWER NOTES
+########################
+• Convert STEP → glTF once (use FreeCAD or CADExchanger) and commit glTF to /public/models/fork.glb.  
+• Inside the glTF, assign mesh names: lower_monolith, crown, stanchion_left, stanchion_right, steerer.  
+• In React, load via drei’s `<useGLTF>`.  
+• Implement click‑to‑select; maintain an array of selected component IDs.  
+• Show bounding‑box highlight (Three.js BoxHelper) on hover; solid color change when selected.
+
+########################
+### 7. ACCEPTANCE TESTS
+########################
+✓ Dashboard lists seeded example jobs from SQLite.  
+✓ Creating a job through wizard inserts DB row & appears in dashboard.  
+✓ Selecting multiple components in 3‑D viewer records them in job JSON.  
+✓ File upload stores file under /data/files/<jobId>/ and DB row created.  
+✓ App runs with `npm run dev` and builds with `npm run build && npm run start`.  
+✓ All ESLint (Airbnb) & Prettier checks pass.  
+✓ README contains Pi deployment steps (`pm2`, systemd, nginx reverse‑proxy).  
+
+########################
+### 8. DELIVERABLES
+########################
+1. **Source repo** (React front‑end in /client, Express back‑end in /server).  
+2. **schema.sql** with create‑table statements & seed data.  
+3. **README.md** with setup, build, deploy, and usage instructions.  
+4. **fork.glb** placeholder in /client/public/models.  
+5. Screenshot GIF of new‑request flow.
+
+########################
+### 9. WORKFLOW
+########################
+• Generate code in coherent, buildable chunks (front‑end first, then back‑end).  
+• After each major section, run `npm test` (if tests exist) and `npm run lint`.  
+• Use comments TODO where business logic stubs are left.  
+• Keep commits small and descriptive.  
+• Provide a final “HOW TO RUN ON PI” section.
+
+########################
+### 10. STYLE GUIDE
+########################
+• Use TypeScript everywhere.  
+• Back‑end uses ES modules (`"type": "module"` in package.json).  
+• Prefer async/await; no callbacks.  
+• Strict null checks.  
+• Use Tailwind utility classes, minimal custom CSS.  
+• Front‑end state: React hooks + context; no Redux.  
+• Keep components ≤250 lines; split logically.
+
+########################
+### 11. START NOW
+########################
+Respond with:
+1. A summary of how you’ll structure the repo.  
+2. The `package.json` files (root, client, server).  
+3. The SQLite schema and seed script.  
+4. Skeleton Express server (`server/index.ts`).  
+5. Skeleton React app (`client/src`) with routes and 3‑D viewer stub.
+
+Make sure the code *builds* before adding advanced features.
