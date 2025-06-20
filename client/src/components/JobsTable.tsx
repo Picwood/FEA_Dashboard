@@ -5,9 +5,12 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Search, List, Grid, Eye, Download, Trash2, ArrowUpDown, Edit } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Search, List, Grid, Eye, Download, Trash2, ArrowUpDown, Edit, ChevronDown, ChevronRight, FolderOpen } from "lucide-react";
 import { useJobs } from "../hooks/useJobs";
 import type { Job } from "@shared/schema";
+
+type JobWithProject = Job & { projectName: string };
 import { useLocation } from "wouter";
 import JobDetailModal from "./JobDetailModal";
 import JobEditModal from "./JobEditModal";
@@ -16,7 +19,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { Copy } from "lucide-react";
 
 interface JobsTableProps {
-  onJobSelect?: (job: Job) => void;
+  onJobSelect?: (job: JobWithProject) => void;
 }
 
 export default function JobsTable({ onJobSelect }: JobsTableProps) {
@@ -30,6 +33,7 @@ export default function JobsTable({ onJobSelect }: JobsTableProps) {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isIterationModalOpen, setIsIterationModalOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
 
   // Get current user info
   useEffect(() => {
@@ -45,6 +49,58 @@ export default function JobsTable({ onJobSelect }: JobsTableProps) {
     sortBy,
     sortOrder,
   });
+
+  // Group jobs by project
+  const projectGroups = jobs.reduce((acc, job) => {
+    const projectName = job.projectName;
+    if (!acc[projectName]) {
+      acc[projectName] = {
+        projectName,
+        jobs: [],
+        totalJobs: 0,
+        statuses: {
+          queued: 0,
+          running: 0,
+          done: 0,
+          failed: 0,
+        },
+      };
+    }
+    acc[projectName].jobs.push(job);
+    acc[projectName].totalJobs++;
+    acc[projectName].statuses[job.status as keyof typeof acc[string]['statuses']]++;
+    return acc;
+  }, {} as Record<string, {
+    projectName: string;
+    jobs: typeof jobs;
+    totalJobs: number;
+    statuses: { queued: number; running: number; done: number; failed: number };
+  }>);
+
+  // Expand all projects by default
+  useEffect(() => {
+    if (Object.keys(projectGroups).length > 0 && expandedProjects.size === 0) {
+      setExpandedProjects(new Set(Object.keys(projectGroups)));
+    }
+  }, [projectGroups]);
+
+  const toggleProject = (projectName: string) => {
+    const newExpanded = new Set(expandedProjects);
+    if (newExpanded.has(projectName)) {
+      newExpanded.delete(projectName);
+    } else {
+      newExpanded.add(projectName);
+    }
+    setExpandedProjects(newExpanded);
+  };
+
+  const expandAllProjects = () => {
+    setExpandedProjects(new Set(Object.keys(projectGroups)));
+  };
+
+  const collapseAllProjects = () => {
+    setExpandedProjects(new Set());
+  };
 
   const handleSort = (column: string) => {
     if (sortBy === column) {
@@ -69,6 +125,22 @@ export default function JobsTable({ onJobSelect }: JobsTableProps) {
       case 'failed': return <Badge variant="destructive">Failed</Badge>;
       default: return <Badge variant="secondary">{status}</Badge>;
     }
+  };
+
+  const getProjectStatusSummary = (statuses: { queued: number; running: number; done: number; failed: number }) => {
+    const { queued, running, done, failed } = statuses;
+    const total = queued + running + done + failed;
+    
+    if (total === 0) return null;
+    
+    return (
+      <div className="flex items-center gap-1 text-xs">
+        {running > 0 && <Badge variant="default" className="text-xs px-1 py-0">{running}</Badge>}
+        {queued > 0 && <Badge variant="secondary" className="text-xs px-1 py-0">{queued}</Badge>}
+        {done > 0 && <Badge variant="outline" className="border-green-500 text-green-700 text-xs px-1 py-0">{done}</Badge>}
+        {failed > 0 && <Badge variant="destructive" className="text-xs px-1 py-0">{failed}</Badge>}
+      </div>
+    );
   };
 
   const handleJobView = (jobId: number) => {
@@ -116,6 +188,13 @@ export default function JobsTable({ onJobSelect }: JobsTableProps) {
                 </SelectContent>
               </Select>
 
+              <Button variant="outline" size="sm" onClick={expandAllProjects}>
+                Expand All
+              </Button>
+              <Button variant="outline" size="sm" onClick={collapseAllProjects}>
+                Collapse All
+              </Button>
+
               <div className="flex rounded-lg border border-gray-300">
                 <Button variant="ghost" size="sm" className="text-primary bg-primary/10 rounded-r-none">
                   <List className="h-4 w-4" />
@@ -135,77 +214,130 @@ export default function JobsTable({ onJobSelect }: JobsTableProps) {
               ))}
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>
-                    <Button variant="ghost" onClick={() => handleSort("id")} className="p-0 h-auto font-medium">
-                      ID <ArrowUpDown className="ml-2 h-4 w-4" />
-                    </Button>
-                  </TableHead>
-                  <TableHead>
-                    <Button variant="ghost" onClick={() => handleSort("projectName")} className="p-0 h-auto font-medium">
-                      Project / Simulation <ArrowUpDown className="ml-2 h-4 w-4" />
-                    </Button>
-                  </TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Priority</TableHead>
-                  <TableHead>
-                    <Button variant="ghost" onClick={() => handleSort("dateRequest")} className="p-0 h-auto font-medium">
-                      Requested <ArrowUpDown className="ml-2 h-4 w-4" />
-                    </Button>
-                  </TableHead>
-                  <TableHead>Due Date</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {jobs.map((job) => (
-                  <TableRow key={job.id} className="hover:bg-gray-50">
-                    <TableCell className="font-medium">#{job.id}</TableCell>
-                    <TableCell>
-                      <div>
-                        <div className="font-medium">{job.projectName}</div>
-                        <div className="text-sm text-gray-500">{job.simulationName}</div>
-                      </div>
-                    </TableCell>
-                    <TableCell>{getStatusBadge(job.status)}</TableCell>
-                    <TableCell>{job.type}</TableCell>
-                    <TableCell>{getPriorityBadge(job.priority)}</TableCell>
-                    <TableCell>{new Date(job.dateRequest).toLocaleDateString()}</TableCell>
-                    <TableCell>
-                      {job.dateDue ? new Date(job.dateDue).toLocaleDateString() : "-"}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center space-x-1">
-                        <Button variant="ghost" size="sm" onClick={() => handleJobView(job.id)}>
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                        {(currentUser?.role === "admin" || currentUser?.username === "engineer") && (
-                          <>
-                            <Button variant="ghost" size="sm" onClick={() => handleJobEdit(job.id)}>
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button variant="ghost" size="sm" onClick={() => handleAddIteration(job.id)}>
-                              <Copy className="h-4 w-4" />
-                            </Button>
-                          </>
-                        )}
-                        {currentUser?.role === "admin" && (
-                          <Button variant="ghost" size="sm">
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        )}
-                      </div>
-                    </TableCell>
+            <div className="space-y-2">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-8"></TableHead>
+                    <TableHead className="w-20">
+                      <Button variant="ghost" onClick={() => handleSort("id")} className="p-0 h-auto font-medium">
+                        ID <ArrowUpDown className="ml-2 h-4 w-4" />
+                      </Button>
+                    </TableHead>
+                    <TableHead className="min-w-[200px]">
+                      <Button variant="ghost" onClick={() => handleSort("projectName")} className="p-0 h-auto font-medium">
+                        Project / Simulation <ArrowUpDown className="ml-2 h-4 w-4" />
+                      </Button>
+                    </TableHead>
+                    <TableHead className="w-24">Status</TableHead>
+                    <TableHead className="w-20">Type</TableHead>
+                    <TableHead className="w-20">Priority</TableHead>
+                    <TableHead className="w-24">
+                      <Button variant="ghost" onClick={() => handleSort("dateRequest")} className="p-0 h-auto font-medium">
+                        Requested <ArrowUpDown className="ml-2 h-4 w-4" />
+                      </Button>
+                    </TableHead>
+                    <TableHead className="w-24">Due Date</TableHead>
+                    <TableHead className="w-32">Actions</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {Object.values(projectGroups).map((project) => (
+                    <>
+                      <TableRow
+                        key={`project-${project.projectName}`}
+                        className="hover:bg-blue-50 cursor-pointer border-b-2 border-blue-100"
+                        onClick={() => toggleProject(project.projectName)}
+                      >
+                        <TableCell className="w-8">
+                          {expandedProjects.has(project.projectName) ? (
+                            <ChevronDown className="h-4 w-4" />
+                          ) : (
+                            <ChevronRight className="h-4 w-4" />
+                          )}
+                        </TableCell>
+                        <TableCell className="w-20 font-medium text-blue-600">
+                          <div className="flex items-center gap-2">
+                            <FolderOpen className="h-4 w-4" />
+                            Project
+                          </div>
+                        </TableCell>
+                        <TableCell className="min-w-[200px]">
+                          <div className="font-semibold text-blue-700">
+                            {project.projectName}
+                          </div>
+                          <div className="text-sm text-gray-500">
+                            {project.totalJobs} simulation{project.totalJobs !== 1 ? 's' : ''}
+                          </div>
+                        </TableCell>
+                        <TableCell className="w-24">
+                          {getProjectStatusSummary(project.statuses)}
+                        </TableCell>
+                        <TableCell className="w-20 text-gray-400">—</TableCell>
+                        <TableCell className="w-20 text-gray-400">—</TableCell>
+                        <TableCell className="w-24 text-gray-400">—</TableCell>
+                        <TableCell className="w-24 text-gray-400">—</TableCell>
+                        <TableCell className="w-32 text-gray-400">—</TableCell>
+                      </TableRow>
+                      {expandedProjects.has(project.projectName) && 
+                        project.jobs.map((job) => (
+                          <TableRow key={`sim-${job.id}`} className="hover:bg-gray-50 bg-gray-25">
+                            <TableCell className="w-8 pl-6">
+                              <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
+                            </TableCell>
+                            <TableCell className="w-20 font-medium">#{job.id}</TableCell>
+                            <TableCell className="min-w-[200px]">
+                              <div className="pl-4">
+                                <div className="text-sm font-medium">{job.simulationName}</div>
+                                <div className="text-xs text-gray-500">Simulation</div>
+                              </div>
+                            </TableCell>
+                            <TableCell className="w-24">{getStatusBadge(job.status)}</TableCell>
+                            <TableCell className="w-20">
+                              <Badge variant="outline" className="text-xs">
+                                {job.type}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="w-20">{getPriorityBadge(job.priority)}</TableCell>
+                            <TableCell className="w-24 text-sm">
+                              {new Date(job.dateRequest).toLocaleDateString()}
+                            </TableCell>
+                            <TableCell className="w-24 text-sm">
+                              {job.dateDue ? new Date(job.dateDue).toLocaleDateString() : "—"}
+                            </TableCell>
+                            <TableCell className="w-32">
+                              <div className="flex items-center space-x-1">
+                                <Button variant="ghost" size="sm" onClick={() => handleJobView(job.id)}>
+                                  <Eye className="h-4 w-4" />
+                                </Button>
+                                {(currentUser?.role === "admin" || currentUser?.username === "engineer") && (
+                                  <>
+                                    <Button variant="ghost" size="sm" onClick={() => handleJobEdit(job.id)}>
+                                      <Edit className="h-4 w-4" />
+                                    </Button>
+                                    <Button variant="ghost" size="sm" onClick={() => handleAddIteration(job.id)}>
+                                      <Copy className="h-4 w-4" />
+                                    </Button>
+                                  </>
+                                )}
+                                {currentUser?.role === "admin" && (
+                                  <Button variant="ghost" size="sm">
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                )}
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      }
+                    </>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           )}
 
-          {jobs.length === 0 && !isLoading && (
+          {Object.keys(projectGroups).length === 0 && !isLoading && (
             <div className="text-center py-12">
               <p className="text-gray-500">No jobs found matching your criteria.</p>
             </div>

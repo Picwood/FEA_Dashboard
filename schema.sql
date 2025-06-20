@@ -45,8 +45,8 @@ INSERT INTO users (username, password_hash) VALUES
     ('engineer', '$2b$10$8K5Jv2XN9mQoLpYx5QrKqOQWLs7R4k6y3P2zL9mXqN1Y8vZ4r6T'); -- password: engineer123
 
 INSERT INTO jobs (project, bench, type, date_request, date_due, priority, status, components) VALUES
-    ('XC-Elite-2024', 'symmetric-bending', 'static', '2024-01-20', '2024-01-25', 5, 'running', '["crown", "stanchion_left", "stanchion_right"]'),
-    ('Trail-Master-V3', 'brake-load', 'fatigue', '2024-01-22', '2024-01-28', 3, 'queued', '["lower_monolith"]'),
+    ('AION36', 'symmetric-bending', 'static', '2024-01-20', '2024-01-25', 5, 'running', '["crown", "stanchion_left", "stanchion_right"]'),
+    ('NRX32-IL', 'brake-load', 'fatigue', '2024-01-22', '2024-01-28', 3, 'queued', '["lower_monolith"]'),
     ('Enduro-Pro-2024', 'unknown', 'static', '2024-01-18', '2024-02-02', 1, 'done', '["crown", "steerer"]'),
     ('Cross-Country-X1', 'symmetric-bending', 'fatigue', '2024-01-15', '2024-01-30', 4, 'failed', '["crown", "stanchion_left", "stanchion_right", "steerer"]'),
     ('Downhill-Beast-V2', 'brake-load', 'static', '2024-01-25', '2024-02-05', 2, 'queued', '["lower_monolith", "crown"]');

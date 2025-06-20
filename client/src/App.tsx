@@ -8,6 +8,7 @@ import { useLocation } from "wouter";
 import { useEffect } from "react";
 
 import Dashboard from "./pages/Dashboard";
+import Projects from "./pages/Projects";
 import NewRequest from "./pages/NewRequest";
 import JobDetail from "./pages/JobDetail";
 import Login from "./pages/Login";
@@ -50,6 +51,7 @@ function Router() {
     <Switch>
       <Route path="/login" component={Login} />
       <Route path="/" component={Dashboard} />
+      <Route path="/projects" component={Projects} />
       <Route path="/new" component={NewRequest} />
       <Route path="/job/:id" component={JobDetail} />
       <Route component={NotFound} />

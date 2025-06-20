@@ -1,6 +1,8 @@
 import { apiRequest } from "./queryClient";
 import type { InsertJob, Job, File } from "@shared/schema";
 
+type JobWithProject = Job & { projectName: string };
+
 export const api = {
   auth: {
     login: async (username: string, password: string) => {
@@ -27,7 +29,7 @@ export const api = {
       if (filters?.sortOrder) params.append("sortOrder", filters.sortOrder);
       
       const res = await apiRequest("GET", `/api/jobs?${params.toString()}`);
-      return res.json() as Promise<Job[]>;
+      return res.json() as Promise<JobWithProject[]>;
     },
     
     get: async (id: number) => {

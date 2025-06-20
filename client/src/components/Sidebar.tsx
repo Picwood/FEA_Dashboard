@@ -16,6 +16,7 @@ import { api } from "../lib/api";
 
 const navigation = [
   { name: "Dashboard", href: "/", icon: ChartLine },
+  { name: "Projects", href: "/projects", icon: FolderOpen },
   { name: "New Request", href: "/new", icon: Plus },
   { name: "3D Viewer", href: "/viewer", icon: Box },
   { name: "File Manager", href: "/files", icon: FolderOpen },

@@ -35,8 +35,8 @@ const users: User[] = [
 ];
 
 const projects: Project[] = [
-  { id: 1, name: "XC-Elite-2024", archived: false, createdAt: "2024-01-15T10:00:00Z" },
-  { id: 2, name: "Trail-Master-V3", archived: false, createdAt: "2024-01-10T09:00:00Z" },
+  { id: 1, name: "AION36", archived: false, createdAt: "2024-01-15T10:00:00Z" },
+  { id: 2, name: "NRX32-IL", archived: false, createdAt: "2024-01-10T09:00:00Z" },
 ];
 
 const jobs: Job[] = [
