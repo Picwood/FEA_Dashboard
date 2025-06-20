@@ -33,7 +33,8 @@ export default function JobsTable({ onJobSelect }: JobsTableProps) {
 
   // Get current user info
   useEffect(() => {
-    apiRequest("/api/auth/me")
+    apiRequest("GET", "/api/auth/me")
+      .then(res => res.json())
       .then(data => setCurrentUser(data.user))
       .catch(() => setCurrentUser(null));
   }, []);
