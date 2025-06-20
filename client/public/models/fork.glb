@@ -1,0 +1,8 @@
+# This is a placeholder for the actual GLB file
+# In a real implementation, this would be a converted STEP file
+# containing the fork suspension model with named meshes:
+# - lower_monolith
+# - crown  
+# - stanchion_left
+# - stanchion_right
+# - steerer
