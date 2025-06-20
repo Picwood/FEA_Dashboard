@@ -22,7 +22,7 @@ export default function JobsTable({ onJobSelect }: JobsTableProps) {
 
   const { data: jobs = [], isLoading } = useJobs({
     search: search || undefined,
-    status: statusFilter || undefined,
+    status: statusFilter === "all" ? undefined : statusFilter || undefined,
     sortBy,
     sortOrder,
   });
@@ -86,7 +86,7 @@ export default function JobsTable({ onJobSelect }: JobsTableProps) {
                 <SelectValue placeholder="All Status" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All Status</SelectItem>
+                <SelectItem value="all">All Status</SelectItem>
                 <SelectItem value="queued">Queued</SelectItem>
                 <SelectItem value="running">Running</SelectItem>
                 <SelectItem value="done">Done</SelectItem>
