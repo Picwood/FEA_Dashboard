@@ -5,7 +5,7 @@ import path from "path";
 import fs from "fs";
 import { storage } from "./storage";
 import { authenticateUser, requireAuth } from "./auth";
-import { insertJobSchema } from "@shared/schema";
+import { insertJobSchema, insertProjectSchema } from "@shared/schema";
 import { initializeDatabase } from "./db";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -58,16 +58,53 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Project routes
+  app.get("/api/projects", requireAuth, async (req, res) => {
+    try {
+      const { archived } = req.query;
+      const projects = await storage.getProjects(
+        archived === "true" ? true : archived === "false" ? false : undefined
+      );
+      res.json(projects);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch projects" });
+    }
+  });
+
+  app.post("/api/projects", requireAuth, async (req, res) => {
+    try {
+      const projectData = insertProjectSchema.parse(req.body);
+      const project = await storage.createProject(projectData);
+      res.status(201).json(project);
+    } catch (error) {
+      res.status(400).json({ message: "Invalid project data" });
+    }
+  });
+
+  app.put("/api/projects/:id/archive", requireAuth, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const success = await storage.archiveProject(id);
+      if (!success) {
+        return res.status(404).json({ message: "Project not found" });
+      }
+      res.json({ message: "Project archived successfully" });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to archive project" });
+    }
+  });
+
   // Job routes
   app.get("/api/jobs", requireAuth, async (req, res) => {
     try {
-      const { status, bench, search, sortBy, sortOrder } = req.query;
+      const { status, bench, search, sortBy, sortOrder, projectId } = req.query;
       const jobs = await storage.getJobs({
         status: status as string,
         bench: bench as string,
         search: search as string,
         sortBy: sortBy as string,
         sortOrder: sortOrder as "asc" | "desc",
+        projectId: projectId ? parseInt(projectId as string) : undefined,
       });
       res.json(jobs);
     } catch (error) {

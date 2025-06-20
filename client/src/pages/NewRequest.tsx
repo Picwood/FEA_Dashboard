@@ -13,10 +13,13 @@ import { useLocation } from "wouter";
 import Sidebar from "../components/Sidebar";
 import ThreeDViewer from "../components/ThreeDViewer";
 import { useCreateJob } from "../hooks/useJobs";
+import { useProjects, useCreateProject } from "../hooks/useProjects";
 import { useToast } from "@/hooks/use-toast";
 
 const newJobSchema = z.object({
-  project: z.string().min(1, "Project name is required"),
+  projectId: z.number().min(1, "Project is required"),
+  projectName: z.string().optional(), // For creating new projects
+  simulationName: z.string().min(1, "Simulation name is required"),
   bench: z.enum(["symmetric-bending", "brake-load", "unknown"]),
   type: z.enum(["static", "fatigue"]),
   dateRequest: z.string().min(1, "Request date is required"),
@@ -28,7 +31,8 @@ const newJobSchema = z.object({
 type NewJobForm = z.infer<typeof newJobSchema>;
 
 const steps = [
-  { title: "Project", description: "Choose or enter project name" },
+  { title: "Project", description: "Choose existing project or create new one" },
+  { title: "Simulation", description: "Name this simulation" },
   { title: "Bench", description: "Select bench configuration" },
   { title: "Type", description: "Choose analysis type" },
   { title: "Components", description: "Select fork components" },
@@ -38,14 +42,19 @@ const steps = [
 export default function NewRequest() {
   const [currentStep, setCurrentStep] = useState(0);
   const [selectedComponents, setSelectedComponents] = useState<string[]>([]);
+  const [isNewProject, setIsNewProject] = useState(false);
   const [, setLocation] = useLocation();
+  const { data: projects = [] } = useProjects(false);
   const createJobMutation = useCreateJob();
+  const createProjectMutation = useCreateProject();
   const { toast } = useToast();
 
   const form = useForm<NewJobForm>({
     resolver: zodResolver(newJobSchema),
     defaultValues: {
-      project: "",
+      projectId: 0,
+      projectName: "",
+      simulationName: "",
       bench: "unknown",
       type: "static",
       dateRequest: new Date().toISOString().split("T")[0],
@@ -56,7 +65,7 @@ export default function NewRequest() {
   });
 
   const handleNext = () => {
-    if (currentStep === 3) {
+    if (currentStep === 4) {
       // Validate components before proceeding
       if (selectedComponents.length === 0) {
         form.setError("components", { message: "At least one component must be selected" });
@@ -92,20 +101,38 @@ export default function NewRequest() {
 
   const onSubmit = async (data: NewJobForm) => {
     try {
+      let projectId = data.projectId;
+
+      // Create new project if needed
+      if (isNewProject && data.projectName) {
+        const newProject = await createProjectMutation.mutateAsync({
+          name: data.projectName,
+          archived: false,
+        });
+        projectId = newProject.id;
+      }
+
       await createJobMutation.mutateAsync({
-        ...data,
+        projectId,
+        simulationName: data.simulationName,
+        bench: data.bench,
+        type: data.type,
+        dateRequest: data.dateRequest,
+        dateDue: data.dateDue,
+        priority: data.priority,
         components: data.components,
         status: "queued",
       });
+      
       toast({
         title: "Success",
-        description: "Job created successfully",
+        description: "Simulation job created successfully",
       });
       setLocation("/");
     } catch (error) {
       toast({
         title: "Error",
-        description: "Failed to create job",
+        description: "Failed to create simulation job",
         variant: "destructive",
       });
     }
@@ -152,44 +179,104 @@ export default function NewRequest() {
                     {/* Step 0: Project */}
                     {currentStep === 0 && (
                       <div className="space-y-4">
+                        <div className="flex items-center space-x-4 mb-4">
+                          <Button
+                            type="button"
+                            variant={!isNewProject ? "default" : "outline"}
+                            onClick={() => setIsNewProject(false)}
+                          >
+                            Existing Project
+                          </Button>
+                          <Button
+                            type="button"
+                            variant={isNewProject ? "default" : "outline"}
+                            onClick={() => setIsNewProject(true)}
+                          >
+                            New Project
+                          </Button>
+                        </div>
+
+                        {!isNewProject ? (
+                          <FormField
+                            control={form.control}
+                            name="projectId"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Select Project</FormLabel>
+                                <Select onValueChange={(value) => field.onChange(parseInt(value))} value={field.value.toString()}>
+                                  <FormControl>
+                                    <SelectTrigger>
+                                      <SelectValue placeholder="Choose an existing project" />
+                                    </SelectTrigger>
+                                  </FormControl>
+                                  <SelectContent>
+                                    {projects.map((project) => (
+                                      <SelectItem key={project.id} value={project.id.toString()}>
+                                        {project.name}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        ) : (
+                          <FormField
+                            control={form.control}
+                            name="projectName"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>New Project Name</FormLabel>
+                                <FormControl>
+                                  <Input placeholder="Enter project name" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        )}
+                        
+                        <div className="bg-blue-50 rounded-lg p-4">
+                          <h4 className="font-medium text-blue-900 mb-2">Project Organization</h4>
+                          <p className="text-sm text-blue-800">
+                            {!isNewProject 
+                              ? "Select an existing project to add this simulation to. All simulations will be grouped under the project."
+                              : "Create a new project to organize your simulations. Multiple simulations can be added to the same project."
+                            }
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Step 1: Simulation Name */}
+                    {currentStep === 1 && (
+                      <div className="space-y-4">
                         <FormField
                           control={form.control}
-                          name="project"
+                          name="simulationName"
                           render={({ field }) => (
                             <FormItem>
-                              <FormLabel>Project Name</FormLabel>
+                              <FormLabel>Simulation Name</FormLabel>
                               <FormControl>
-                                <Input 
-                                  placeholder="e.g., XC-Elite-2024" 
-                                  {...field} 
-                                />
+                                <Input placeholder="Enter simulation name" {...field} />
                               </FormControl>
                               <FormMessage />
                             </FormItem>
                           )}
                         />
                         
-                        <div className="bg-gray-50 rounded-lg p-4">
-                          <h4 className="font-medium mb-2">Recent Projects</h4>
-                          <div className="grid grid-cols-2 gap-2">
-                            {["XC-Elite-2024", "Trail-Master-V3", "Enduro-Pro-2024", "Cross-Country-X1"].map(project => (
-                              <Button
-                                key={project}
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                onClick={() => form.setValue("project", project)}
-                              >
-                                {project}
-                              </Button>
-                            ))}
-                          </div>
+                        <div className="bg-green-50 rounded-lg p-4">
+                          <h4 className="font-medium text-green-900 mb-2">Simulation Naming</h4>
+                          <p className="text-sm text-green-800">
+                            Give this specific simulation a descriptive name. Examples: "Static Analysis - Main Fork", "Fatigue Test - High Load", "Design Iteration #3".
+                          </p>
                         </div>
                       </div>
                     )}
 
-                    {/* Step 1: Bench */}
-                    {currentStep === 1 && (
+                    {/* Step 2: Bench */}
+                    {currentStep === 2 && (
                       <div className="space-y-4">
                         <FormField
                           control={form.control}
@@ -225,8 +312,8 @@ export default function NewRequest() {
                       </div>
                     )}
 
-                    {/* Step 2: Type */}
-                    {currentStep === 2 && (
+                    {/* Step 3: Type */}
+                    {currentStep === 3 && (
                       <div className="space-y-4">
                         <FormField
                           control={form.control}
@@ -268,8 +355,8 @@ export default function NewRequest() {
                       </div>
                     )}
 
-                    {/* Step 3: Components */}
-                    {currentStep === 3 && (
+                    {/* Step 4: Components */}
+                    {currentStep === 4 && (
                       <div className="space-y-4">
                         <div>
                           <label className="text-sm font-medium">Select Components</label>
@@ -292,8 +379,8 @@ export default function NewRequest() {
                       </div>
                     )}
 
-                    {/* Step 4: Details */}
-                    {currentStep === 4 && (
+                    {/* Step 5: Details */}
+                    {currentStep === 5 && (
                       <div className="space-y-4">
                         <div className="grid grid-cols-2 gap-4">
                           <FormField
@@ -356,7 +443,13 @@ export default function NewRequest() {
                           <div className="grid grid-cols-2 gap-3 text-sm">
                             <div>
                               <span className="text-gray-600">Project:</span>
-                              <span className="ml-2 font-medium">{form.watch("project")}</span>
+                              <span className="ml-2 font-medium">
+                                {isNewProject ? form.watch("projectName") : projects.find(p => p.id === form.watch("projectId"))?.name}
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-gray-600">Simulation:</span>
+                              <span className="ml-2 font-medium">{form.watch("simulationName")}</span>
                             </div>
                             <div>
                               <span className="text-gray-600">Bench:</span>

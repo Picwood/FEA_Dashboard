@@ -1,4 +1,4 @@
-import { type User, type Job, type File, type InsertUser, type InsertJob, type InsertFile } from "@shared/schema";
+import { type User, type Job, type File, type Project, type InsertUser, type InsertJob, type InsertFile, type InsertProject } from "@shared/schema";
 
 export interface IStorage {
   // User methods
@@ -6,9 +6,17 @@ export interface IStorage {
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
 
+  // Project methods
+  getProjects(archived?: boolean): Promise<Project[]>;
+  getProject(id: number): Promise<Project | undefined>;
+  getProjectByName(name: string): Promise<Project | undefined>;
+  createProject(project: InsertProject): Promise<Project>;
+  updateProject(id: number, updates: Partial<InsertProject>): Promise<Project | undefined>;
+  archiveProject(id: number): Promise<boolean>;
+
   // Job methods
-  getJobs(filters?: { status?: string; bench?: string; search?: string; sortBy?: string; sortOrder?: "asc" | "desc" }): Promise<Job[]>;
-  getJob(id: number): Promise<Job | undefined>;
+  getJobs(filters?: { status?: string; bench?: string; search?: string; sortBy?: string; sortOrder?: "asc" | "desc"; projectId?: number }): Promise<(Job & { projectName: string })[]>;
+  getJob(id: number): Promise<(Job & { projectName: string }) | undefined>;
   createJob(job: InsertJob): Promise<Job>;
   updateJob(id: number, updates: Partial<InsertJob>): Promise<Job | undefined>;
   deleteJob(id: number): Promise<boolean>;
@@ -20,57 +28,53 @@ export interface IStorage {
   deleteFile(id: number): Promise<boolean>;
 }
 
-// In-memory storage for demo purposes
-let users: User[] = [
+// In-memory storage
+const users: User[] = [
   { id: 1, username: "admin", passwordHash: "admin" },
-  { id: 2, username: "engineer", passwordHash: "engineer123" }
+  { id: 2, username: "engineer", passwordHash: "engineer123" },
 ];
 
-let jobs: Job[] = [
+const projects: Project[] = [
+  { id: 1, name: "XC-Elite-2024", archived: false, createdAt: "2024-01-15T10:00:00Z" },
+  { id: 2, name: "Trail-Master-V3", archived: false, createdAt: "2024-01-10T09:00:00Z" },
+];
+
+const jobs: Job[] = [
   {
     id: 1,
-    project: "XC-Elite-2024",
+    projectId: 1,
+    simulationName: "Static Analysis - Main Fork",
     bench: "symmetric-bending",
     type: "static",
-    dateRequest: "2024-01-20",
-    dateDue: "2024-01-25",
-    priority: 5,
+    dateRequest: "2024-01-15",
+    dateDue: "2024-02-15",
+    priority: 4,
     status: "running",
-    components: ["crown", "stanchion_left", "stanchion_right"],
-    createdAt: "2024-01-20T10:00:00Z",
-    updatedAt: "2024-01-20T10:00:00Z"
+    components: ["lower_monolith", "crown"],
+    createdAt: "2024-01-15T10:00:00Z",
+    updatedAt: "2024-01-16T14:30:00Z"
   },
   {
     id: 2,
-    project: "Trail-Master-V3",
+    projectId: 2,
+    simulationName: "Fatigue Analysis - Brake Load",
     bench: "brake-load",
     type: "fatigue",
-    dateRequest: "2024-01-22",
-    dateDue: "2024-01-28",
+    dateRequest: "2024-01-10",
+    dateDue: "2024-01-30",
     priority: 3,
     status: "queued",
-    components: ["lower_monolith"],
-    createdAt: "2024-01-22T10:00:00Z",
-    updatedAt: "2024-01-22T10:00:00Z"
-  },
-  {
-    id: 3,
-    project: "Enduro-Pro-2024",
-    bench: "unknown",
-    type: "static",
-    dateRequest: "2024-01-18",
-    dateDue: "2024-02-02",
-    priority: 1,
-    status: "done",
-    components: ["crown", "steerer"],
-    createdAt: "2024-01-18T10:00:00Z",
-    updatedAt: "2024-01-18T10:00:00Z"
+    components: ["stanchion_left", "stanchion_right", "steerer"],
+    createdAt: "2024-01-10T09:00:00Z",
+    updatedAt: "2024-01-10T09:00:00Z"
   }
 ];
 
-let files: File[] = [];
+const files: File[] = [];
+
 let nextUserId = 3;
-let nextJobId = 4;
+let nextProjectId = 3;
+let nextJobId = 3;
 let nextFileId = 1;
 
 export class DatabaseStorage implements IStorage {
@@ -85,10 +89,57 @@ export class DatabaseStorage implements IStorage {
   async createUser(user: InsertUser): Promise<User> {
     const newUser: User = {
       id: nextUserId++,
-      ...user
+      username: user.username,
+      passwordHash: user.passwordHash,
     };
     users.push(newUser);
     return newUser;
+  }
+
+  // Project methods
+  async getProjects(archived?: boolean): Promise<Project[]> {
+    if (archived !== undefined) {
+      return projects.filter(p => p.archived === archived);
+    }
+    return projects;
+  }
+
+  async getProject(id: number): Promise<Project | undefined> {
+    return projects.find(p => p.id === id);
+  }
+
+  async getProjectByName(name: string): Promise<Project | undefined> {
+    return projects.find(p => p.name === name);
+  }
+
+  async createProject(project: InsertProject): Promise<Project> {
+    const newProject: Project = {
+      id: nextProjectId++,
+      name: project.name,
+      archived: project.archived || false,
+      createdAt: new Date().toISOString(),
+    };
+    projects.push(newProject);
+    return newProject;
+  }
+
+  async updateProject(id: number, updates: Partial<InsertProject>): Promise<Project | undefined> {
+    const projectIndex = projects.findIndex(p => p.id === id);
+    if (projectIndex === -1) return undefined;
+    
+    projects[projectIndex] = {
+      ...projects[projectIndex],
+      ...updates,
+    };
+    return projects[projectIndex];
+  }
+
+  async archiveProject(id: number): Promise<boolean> {
+    const projectIndex = projects.findIndex(p => p.id === id);
+    if (projectIndex === -1) return false;
+    
+    projects[projectIndex].archived = true;
+    return true;
   }
 
   async getJobs(filters?: { 
@@ -96,11 +147,22 @@ export class DatabaseStorage implements IStorage {
     bench?: string; 
     search?: string; 
     sortBy?: string; 
-    sortOrder?: "asc" | "desc" 
-  }): Promise<Job[]> {
-    let result = [...jobs];
+    sortOrder?: "asc" | "desc";
+    projectId?: number;
+  }): Promise<(Job & { projectName: string })[]> {
+    let result = jobs.map(job => {
+      const project = projects.find(p => p.id === job.projectId);
+      return {
+        ...job,
+        projectName: project?.name || "Unknown Project"
+      };
+    });
     
     if (filters) {
+      if (filters.projectId) {
+        result = result.filter(job => job.projectId === filters.projectId);
+      }
+      
       if (filters.status) {
         result = result.filter(job => job.status === filters.status);
       }
@@ -110,8 +172,13 @@ export class DatabaseStorage implements IStorage {
       }
       
       if (filters.search) {
+        const searchLower = filters.search.toLowerCase();
         result = result.filter(job => 
-          job.project.toLowerCase().includes(filters.search!.toLowerCase())
+          job.projectName.toLowerCase().includes(searchLower) ||
+          job.simulationName.toLowerCase().includes(searchLower) ||
+          job.type.toLowerCase().includes(searchLower) ||
+          job.bench.toLowerCase().includes(searchLower) ||
+          job.status.toLowerCase().includes(searchLower)
         );
       }
       
@@ -134,21 +201,29 @@ export class DatabaseStorage implements IStorage {
     return result;
   }
 
-  async getJob(id: number): Promise<Job | undefined> {
-    return jobs.find(j => j.id === id);
+  async getJob(id: number): Promise<(Job & { projectName: string }) | undefined> {
+    const job = jobs.find(j => j.id === id);
+    if (!job) return undefined;
+    
+    const project = projects.find(p => p.id === job.projectId);
+    return {
+      ...job,
+      projectName: project?.name || "Unknown Project"
+    };
   }
 
   async createJob(job: InsertJob): Promise<Job> {
     const newJob: Job = {
       id: nextJobId++,
-      project: job.project,
+      projectId: job.projectId,
+      simulationName: job.simulationName,
       bench: job.bench,
       type: job.type,
       dateRequest: job.dateRequest,
       dateDue: job.dateDue || null,
       priority: job.priority,
       status: job.status,
-      components: job.components as string[] || [],
+      components: (job.components as string[]) || [],
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
@@ -175,7 +250,6 @@ export class DatabaseStorage implements IStorage {
     if (jobIndex === -1) return false;
     
     jobs.splice(jobIndex, 1);
-    files = files.filter(f => f.jobId !== id);
     return true;
   }
 
@@ -186,8 +260,13 @@ export class DatabaseStorage implements IStorage {
   async createFile(file: InsertFile): Promise<File> {
     const newFile: File = {
       id: nextFileId++,
-      ...file,
-      uploadedAt: new Date().toISOString()
+      jobId: file.jobId,
+      label: file.label,
+      filename: file.filename,
+      path: file.path,
+      mimetype: file.mimetype,
+      size: file.size,
+      uploadedAt: new Date().toISOString(),
     };
     files.push(newFile);
     return newFile;

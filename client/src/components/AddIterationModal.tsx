@@ -13,7 +13,8 @@ import { useCreateJob, useJob } from "../hooks/useJobs";
 import { useToast } from "@/hooks/use-toast";
 
 const iterationSchema = z.object({
-  project: z.string().min(1, "Project name is required"),
+  projectId: z.number().min(1, "Project is required"),
+  simulationName: z.string().min(1, "Simulation name is required"),
   bench: z.enum(["symmetric-bending", "brake-load", "unknown"]),
   type: z.enum(["static", "fatigue"]),
   dateRequest: z.string().min(1, "Request date is required"),
@@ -39,7 +40,8 @@ export default function AddIterationModal({ baseJobId, open, onOpenChange }: Add
   const form = useForm<IterationForm>({
     resolver: zodResolver(iterationSchema),
     defaultValues: {
-      project: "",
+      projectId: 0,
+      simulationName: "",
       bench: "unknown",
       type: "static",
       dateRequest: new Date().toISOString().split("T")[0],
@@ -54,14 +56,15 @@ export default function AddIterationModal({ baseJobId, open, onOpenChange }: Add
   useEffect(() => {
     if (baseJob) {
       form.reset({
-        project: `${baseJob.project} - Iteration`,
+        projectId: baseJob.projectId,
+        simulationName: `${baseJob.simulationName} - Iteration`,
         bench: baseJob.bench as "symmetric-bending" | "brake-load" | "unknown",
         type: baseJob.type as "static" | "fatigue",
         dateRequest: new Date().toISOString().split("T")[0],
         dateDue: "",
         priority: baseJob.priority,
         components: baseJob.components || [],
-        iterationNotes: `Iteration based on job #${baseJob.id}`,
+        iterationNotes: `Iteration based on simulation: ${baseJob.simulationName}`,
       });
     }
   }, [baseJob, form]);
@@ -100,9 +103,10 @@ export default function AddIterationModal({ baseJobId, open, onOpenChange }: Add
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <div className="bg-blue-50 rounded-lg p-4">
-              <h4 className="font-medium text-blue-900 mb-2">Base Job Details</h4>
+              <h4 className="font-medium text-blue-900 mb-2">Base Simulation Details</h4>
               <div className="text-sm text-blue-800 space-y-1">
-                <p><strong>Project:</strong> {baseJob.project}</p>
+                <p><strong>Project:</strong> {baseJob.projectName}</p>
+                <p><strong>Simulation:</strong> {baseJob.simulationName}</p>
                 <p><strong>Type:</strong> {baseJob.type}</p>
                 <p><strong>Bench:</strong> {baseJob.bench}</p>
                 <p><strong>Components:</strong> {baseJob.components?.join(", ") || "None"}</p>
@@ -112,10 +116,10 @@ export default function AddIterationModal({ baseJobId, open, onOpenChange }: Add
             <div className="grid grid-cols-2 gap-4">
               <FormField
                 control={form.control}
-                name="project"
+                name="simulationName"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Iteration Project Name</FormLabel>
+                    <FormLabel>Iteration Simulation Name</FormLabel>
                     <FormControl>
                       <Input {...field} />
                     </FormControl>

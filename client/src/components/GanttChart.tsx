@@ -24,16 +24,45 @@ export default function GanttChart() {
     );
   }
 
-  // Sort jobs by request date
-  const sortedJobs = [...jobs].sort((a, b) => 
-    new Date(a.dateRequest).getTime() - new Date(b.dateRequest).getTime()
+  // Group jobs by project and get project timeline data
+  const projectTimelines = jobs.reduce((acc, job) => {
+    const projectName = job.projectName;
+    if (!acc[projectName]) {
+      acc[projectName] = {
+        projectName,
+        jobs: [],
+        firstRequest: job.dateRequest,
+        lastDue: job.dateDue || job.dateRequest,
+      };
+    }
+    
+    acc[projectName].jobs.push(job);
+    
+    // Update project timeline bounds
+    if (new Date(job.dateRequest) < new Date(acc[projectName].firstRequest)) {
+      acc[projectName].firstRequest = job.dateRequest;
+    }
+    if (job.dateDue && new Date(job.dateDue) > new Date(acc[projectName].lastDue)) {
+      acc[projectName].lastDue = job.dateDue;
+    }
+    
+    return acc;
+  }, {} as Record<string, { 
+    projectName: string; 
+    jobs: typeof jobs; 
+    firstRequest: string; 
+    lastDue: string; 
+  }>);
+
+  const sortedProjects = Object.values(projectTimelines).sort((a, b) => 
+    new Date(a.firstRequest).getTime() - new Date(b.firstRequest).getTime()
   );
 
-  // Get date range
+  // Get date range from project timelines
   const today = new Date();
-  const dates = sortedJobs.flatMap(job => [
-    new Date(job.dateRequest),
-    job.dateDue ? new Date(job.dateDue) : today
+  const dates = sortedProjects.flatMap(project => [
+    new Date(project.firstRequest),
+    new Date(project.lastDue)
   ]);
   const minDate = new Date(Math.min(...dates.map(d => d.getTime())));
   const maxDate = new Date(Math.max(...dates.map(d => d.getTime())));
@@ -99,75 +128,114 @@ export default function GanttChart() {
             />
           </div>
 
-          {/* Job bars */}
-          <div className="space-y-3">
-            {sortedJobs.map((job) => {
-              const startDate = new Date(job.dateRequest);
-              const endDate = job.dateDue ? new Date(job.dateDue) : new Date(today.getTime() + 14 * 24 * 60 * 60 * 1000);
+          {/* Project timeline bars */}
+          <div className="space-y-4">
+            {sortedProjects.map((project) => {
+              const startDate = new Date(project.firstRequest);
+              const endDate = new Date(project.lastDue);
               
               const startPos = getDatePosition(startDate);
               const endPos = getDatePosition(endDate);
               const width = Math.max(2, endPos - startPos);
 
+              // Get priority from highest priority job in project
+              const highestPriority = Math.max(...project.jobs.map(j => j.priority));
+              
+              // Get overall project status
+              const hasRunning = project.jobs.some(j => j.status === "running");
+              const hasQueued = project.jobs.some(j => j.status === "queued");
+              const allDone = project.jobs.every(j => j.status === "done");
+              const hasFailed = project.jobs.some(j => j.status === "failed");
+              
+              const projectStatus = hasFailed ? "failed" : 
+                                 hasRunning ? "running" : 
+                                 hasQueued ? "queued" : 
+                                 allDone ? "done" : "queued";
+
               return (
-                <div key={job.id} className="relative">
+                <div key={project.projectName} className="relative">
                   <div className="flex items-center gap-3 mb-1">
                     <div className="w-40 text-sm font-medium truncate">
-                      {job.project}
+                      {project.projectName}
                     </div>
                     <div className="flex items-center gap-2">
-                      <Badge variant="outline" className={getPriorityColor(job.priority)}>
-                        P{job.priority}
+                      <Badge variant="outline" className={getPriorityColor(highestPriority)}>
+                        P{highestPriority}
                       </Badge>
                       <Badge variant="secondary">
-                        {job.status}
+                        {project.jobs.length} simulations
+                      </Badge>
+                      <Badge variant="secondary">
+                        {projectStatus}
                       </Badge>
                     </div>
                   </div>
                   
                   {/* Timeline bar */}
-                  <div className="relative h-6 bg-gray-100 rounded">
+                  <div className="relative h-8 bg-gray-100 rounded">
                     <div
-                      className={`absolute top-1 bottom-1 rounded ${getStatusColor(job.status)} opacity-80`}
+                      className={`absolute top-1 bottom-1 rounded ${getStatusColor(projectStatus)} opacity-60`}
                       style={{
                         left: `${startPos}%`,
                         width: `${width}%`,
                       }}
                     />
                     
-                    {/* Start date marker */}
+                    {/* Project start marker */}
                     <div
                       className="absolute top-0 w-2 h-full bg-gray-600 rounded-l"
                       style={{ left: `${startPos}%` }}
                     />
                     
-                    {/* Due date marker */}
-                    {job.dateDue && (
-                      <div
-                        className="absolute top-0 w-2 h-full bg-gray-800 rounded-r"
-                        style={{ left: `${endPos - 2}%` }}
-                      />
-                    )}
+                    {/* Project end marker */}
+                    <div
+                      className="absolute top-0 w-2 h-full bg-gray-800 rounded-r"
+                      style={{ left: `${endPos - 2}%` }}
+                    />
+                    
+                    {/* Individual simulation due dates as dots */}
+                    {project.jobs
+                      .filter(job => job.dateDue && job.dateDue !== project.lastDue)
+                      .map((job, index) => {
+                        const dueDatePos = getDatePosition(new Date(job.dateDue!));
+                        return (
+                          <div
+                            key={`${job.id}-${index}`}
+                            className="absolute top-1/2 transform -translate-y-1/2 w-3 h-3 bg-blue-600 rounded-full border-2 border-white"
+                            style={{ left: `${dueDatePos}%` }}
+                            title={`${job.simulationName} - Due: ${formatDate(job.dateDue!)}`}
+                          />
+                        );
+                      })
+                    }
                   </div>
                   
                   {/* Date labels */}
                   <div className="flex justify-between text-xs text-gray-500 mt-1">
                     <span className="flex items-center gap-1">
                       <Clock className="h-3 w-3" />
-                      {formatDate(job.dateRequest)}
+                      {formatDate(project.firstRequest)}
                     </span>
-                    {job.dateDue && (
-                      <span>Due: {formatDate(job.dateDue)}</span>
-                    )}
+                    <span>Due: {formatDate(project.lastDue)}</span>
+                  </div>
+                  
+                  {/* Simulation list */}
+                  <div className="mt-2 ml-4 text-xs text-gray-600">
+                    {project.jobs.map((job, index) => (
+                      <span key={job.id}>
+                        {job.simulationName}
+                        {index < project.jobs.length - 1 ? " • " : ""}
+                      </span>
+                    ))}
                   </div>
                 </div>
               );
             })}
           </div>
 
-          {sortedJobs.length === 0 && (
+          {sortedProjects.length === 0 && (
             <div className="h-32 flex items-center justify-center text-gray-500">
-              No jobs to display in timeline
+              No projects to display in timeline
             </div>
           )}
         </div>

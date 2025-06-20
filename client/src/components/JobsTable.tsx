@@ -144,8 +144,8 @@ export default function JobsTable({ onJobSelect }: JobsTableProps) {
                     </Button>
                   </TableHead>
                   <TableHead>
-                    <Button variant="ghost" onClick={() => handleSort("project")} className="p-0 h-auto font-medium">
-                      Project <ArrowUpDown className="ml-2 h-4 w-4" />
+                    <Button variant="ghost" onClick={() => handleSort("projectName")} className="p-0 h-auto font-medium">
+                      Project / Simulation <ArrowUpDown className="ml-2 h-4 w-4" />
                     </Button>
                   </TableHead>
                   <TableHead>Status</TableHead>
@@ -164,7 +164,12 @@ export default function JobsTable({ onJobSelect }: JobsTableProps) {
                 {jobs.map((job) => (
                   <TableRow key={job.id} className="hover:bg-gray-50">
                     <TableCell className="font-medium">#{job.id}</TableCell>
-                    <TableCell className="font-medium">{job.project}</TableCell>
+                    <TableCell>
+                      <div>
+                        <div className="font-medium">{job.projectName}</div>
+                        <div className="text-sm text-gray-500">{job.simulationName}</div>
+                      </div>
+                    </TableCell>
                     <TableCell>{getStatusBadge(job.status)}</TableCell>
                     <TableCell>{job.type}</TableCell>
                     <TableCell>{getPriorityBadge(job.priority)}</TableCell>

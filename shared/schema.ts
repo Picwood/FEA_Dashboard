@@ -8,9 +8,17 @@ export const users = sqliteTable("users", {
   passwordHash: text("password_hash").notNull(),
 });
 
+export const projects = sqliteTable("projects", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  name: text("name").notNull().unique(),
+  archived: integer("archived", { mode: "boolean" }).default(false),
+  createdAt: text("created_at").default("CURRENT_TIMESTAMP"),
+});
+
 export const jobs = sqliteTable("jobs", {
   id: integer("id").primaryKey({ autoIncrement: true }),
-  project: text("project").notNull(),
+  projectId: integer("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  simulationName: text("simulation_name").notNull(),
   bench: text("bench").notNull(), // symmetric-bending, brake-load, unknown
   type: text("type").notNull(), // static, fatigue
   dateRequest: text("date_request").notNull(),
@@ -38,6 +46,11 @@ export const insertUserSchema = createInsertSchema(users).pick({
   passwordHash: true,
 });
 
+export const insertProjectSchema = createInsertSchema(projects).omit({
+  id: true,
+  createdAt: true,
+});
+
 export const insertJobSchema = createInsertSchema(jobs).omit({
   id: true,
   createdAt: true,
@@ -51,6 +64,8 @@ export const insertFileSchema = createInsertSchema(files).omit({
 
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
+export type Project = typeof projects.$inferSelect;
+export type InsertProject = z.infer<typeof insertProjectSchema>;
 export type Job = typeof jobs.$inferSelect;
 export type InsertJob = z.infer<typeof insertJobSchema>;
 export type File = typeof files.$inferSelect;
