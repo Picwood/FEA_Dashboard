@@ -257,6 +257,9 @@ export class DatabaseStorage implements IStorage {
       priority: job.priority,
       status: job.status,
       components: (job.components as string[]) || [],
+      confidence: null,
+      conclusion: null,
+      reportPath: null,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };

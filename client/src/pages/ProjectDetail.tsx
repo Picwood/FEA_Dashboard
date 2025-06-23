@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Upload, ExternalLink, Calendar, User, FileText, TrendingUp, CheckCircle, AlertCircle, XCircle, Clock, Edit } from "lucide-react";
 import { useLocation } from "wouter";
+import { useQueryClient } from "@tanstack/react-query";
 import Sidebar from "../components/Sidebar";
 import { useJobs } from "../hooks/useJobs";
 import { useProjects } from "../hooks/useProjects";
@@ -49,6 +50,7 @@ export default function ProjectDetail() {
   const { data: projects = [] } = useProjects(false);
   const { data: jobs = [] } = useJobs({ includeArchived: true });
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [uploadDialog, setUploadDialog] = useState<{ open: boolean; jobId?: number }>({ open: false });
   const [reportFile, setReportFile] = useState<File | null>(null);
   const [editDialog, setEditDialog] = useState<{ open: boolean; jobId?: number; confidence?: number; conclusion?: string }>({ open: false });
@@ -106,9 +108,11 @@ export default function ProjectDetail() {
         description: "Report uploaded successfully",
       });
       
+      // Invalidate queries to refresh the job data
+      queryClient.invalidateQueries({ queryKey: ["/api/jobs"] });
+      
       setUploadDialog({ open: false });
       setReportFile(null);
-      // TODO: Refresh data
     } catch (error) {
       console.error("Upload error:", error);
       toast({
@@ -160,8 +164,10 @@ export default function ProjectDetail() {
         description: "Analysis results updated successfully",
       });
       
+      // Invalidate queries to refresh the job data
+      queryClient.invalidateQueries({ queryKey: ["/api/jobs"] });
+      
       setEditDialog({ open: false });
-      // TODO: Refresh data
     } catch (error) {
       console.error("Update error:", error);
       toast({
@@ -172,7 +178,7 @@ export default function ProjectDetail() {
     }
   };
 
-  const formatDate = (dateString?: string) => {
+  const formatDate = (dateString?: string | null) => {
     if (!dateString) return "Not set";
     return new Date(dateString).toLocaleDateString();
   };

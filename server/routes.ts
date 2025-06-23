@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import session from "express-session";
 import path from "path";
 import fs from "fs";
+import multer from "multer";
 import { storage } from "./storage";
 import { authenticateUser, requireAuth } from "./auth";
 import { insertJobSchema, insertProjectSchema } from "@shared/schema";
@@ -11,6 +12,40 @@ import { initializeDatabase } from "./db";
 export async function registerRoutes(app: Express): Promise<Server> {
   // Initialize database
   await initializeDatabase();
+
+  // Configure multer for file uploads
+  const uploadStorage = multer.diskStorage({
+    destination: (req, file, cb) => {
+      const jobId = req.params.id;
+      const uploadPath = path.join("./data/files", jobId);
+      
+      // Create directory if it doesn't exist
+      if (!fs.existsSync(uploadPath)) {
+        fs.mkdirSync(uploadPath, { recursive: true });
+      }
+      
+      cb(null, uploadPath);
+    },
+    filename: (req, file, cb) => {
+      const jobId = req.params.id;
+      const label = req.body.label || "file";
+      const timestamp = Date.now();
+      const ext = path.extname(file.originalname);
+      cb(null, `${label}_${timestamp}${ext}`);
+    }
+  });
+
+  const upload = multer({ 
+    storage: uploadStorage,
+    fileFilter: (req, file, cb) => {
+      // For reports, only allow HTML files
+      if (req.body.label === "report" && file.mimetype !== "text/html") {
+        cb(new Error("Only HTML files are allowed for reports"));
+        return;
+      }
+      cb(null, true);
+    }
+  });
 
   // Session configuration
   app.use(session({
@@ -181,82 +216,84 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/jobs/:id/files", requireAuth, async (req, res) => {
+  app.post("/api/jobs/:id/files", requireAuth, upload.single('file'), async (req, res) => {
     try {
       const jobId = parseInt(req.params.id);
       const { label } = req.body;
+      const file = req.file;
       
-      // For now, just simulate saving a report file
+      if (!file) {
+        return res.status(400).json({ message: "No file uploaded" });
+      }
+      
       if (label === "report") {
-        // Update the job with a dummy report path
-        const reportPath = `reports/job_${jobId}_report.html`;
-        await storage.updateJob(jobId, { reportPath });
+        // Update the job with the actual file path
+        const relativePath = path.relative("./data/files", file.path);
+        await storage.updateJob(jobId, { reportPath: relativePath });
         
         res.status(201).json({ 
           id: Date.now(),
           jobId,
           label,
-          filename: "report.html",
-          path: reportPath,
-          mimetype: "text/html",
-          size: 1024,
+          filename: file.originalname,
+          path: relativePath,
+          mimetype: file.mimetype,
+          size: file.size,
           uploadedAt: new Date().toISOString()
         });
       } else {
-        res.status(201).json([]);
+        // Create file record in storage for other file types
+        const fileRecord = await storage.createFile({
+          jobId,
+          label,
+          filename: file.originalname,
+          path: path.relative("./data/files", file.path),
+          mimetype: file.mimetype,
+          size: file.size,
+        });
+        
+        res.status(201).json(fileRecord);
       }
     } catch (error) {
+      console.error("File upload error:", error);
       res.status(500).json({ message: "File upload failed" });
     }
   });
 
-  // Route to serve report files
+  // Route to serve uploaded files
   app.get("/api/files/:path(*)", requireAuth, async (req, res) => {
     try {
       const filePath = req.params.path;
-      // For demo purposes, return a simple HTML report
-      if (filePath.includes("report.html")) {
-        const htmlContent = `
-          <!DOCTYPE html>
-          <html>
-          <head>
-            <title>FEA Simulation Report</title>
-            <style>
-              body { font-family: Arial, sans-serif; margin: 20px; }
-              .header { color: #2563eb; border-bottom: 2px solid #2563eb; padding-bottom: 10px; }
-              .section { margin: 20px 0; }
-              .result { background: #f0f9ff; padding: 15px; border-radius: 5px; }
-            </style>
-          </head>
-          <body>
-            <div class="header">
-              <h1>FEA Simulation Report</h1>
-              <p>Generated on ${new Date().toLocaleDateString()}</p>
-            </div>
-            
-            <div class="section">
-              <h2>Analysis Summary</h2>
-              <div class="result">
-                <p><strong>Status:</strong> Completed Successfully</p>
-                <p><strong>Convergence:</strong> Achieved</p>
-                <p><strong>Maximum Stress:</strong> 185.2 MPa</p>
-                <p><strong>Maximum Displacement:</strong> 2.34 mm</p>
-              </div>
-            </div>
-            
-            <div class="section">
-              <h2>Conclusion</h2>
-              <p>The analysis shows that the design meets all safety requirements with acceptable stress levels and deformation.</p>
-            </div>
-          </body>
-          </html>
-        `;
-        res.setHeader('Content-Type', 'text/html');
-        res.send(htmlContent);
-      } else {
-        res.status(404).json({ message: "File not found" });
+      const fullPath = path.join("./data/files", filePath);
+      
+      // Check if file exists
+      if (!fs.existsSync(fullPath)) {
+        return res.status(404).json({ message: "File not found" });
       }
+      
+      // Get file stats for proper headers
+      const stats = fs.statSync(fullPath);
+      const ext = path.extname(fullPath).toLowerCase();
+      
+      // Set appropriate content type based on file extension
+      let contentType = "application/octet-stream";
+      if (ext === ".html" || ext === ".htm") {
+        contentType = "text/html";
+      } else if (ext === ".pdf") {
+        contentType = "application/pdf";
+      } else if (ext === ".txt") {
+        contentType = "text/plain";
+      }
+      
+      res.setHeader('Content-Type', contentType);
+      res.setHeader('Content-Length', stats.size);
+      
+      // Stream the file
+      const fileStream = fs.createReadStream(fullPath);
+      fileStream.pipe(res);
+      
     } catch (error) {
+      console.error("File serving error:", error);
       res.status(500).json({ message: "Failed to serve file" });
     }
   });
