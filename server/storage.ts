@@ -37,6 +37,7 @@ const users: User[] = [
 const projects: Project[] = [
   { id: 1, name: "AION36", archived: false, createdAt: "2024-01-15T10:00:00Z" },
   { id: 2, name: "NRX32-IL", archived: false, createdAt: "2024-01-10T09:00:00Z" },
+  { id: 3, name: "Legacy-OldProject", archived: true, createdAt: "2023-12-01T10:00:00Z" },
 ];
 
 const jobs: Job[] = [
@@ -51,6 +52,9 @@ const jobs: Job[] = [
     priority: 4,
     status: "running",
     components: ["lower_monolith", "crown"],
+    confidence: null,
+    conclusion: null,
+    reportPath: null,
     createdAt: "2024-01-15T10:00:00Z",
     updatedAt: "2024-01-16T14:30:00Z"
   },
@@ -65,16 +69,36 @@ const jobs: Job[] = [
     priority: 3,
     status: "queued",
     components: ["stanchion_left", "stanchion_right", "steerer"],
+    confidence: null,
+    conclusion: null,
+    reportPath: null,
     createdAt: "2024-01-10T09:00:00Z",
     updatedAt: "2024-01-10T09:00:00Z"
+  },
+  {
+    id: 3,
+    projectId: 3,
+    simulationName: "Old Legacy Test",
+    bench: "unknown",
+    type: "static",
+    dateRequest: "2023-12-01",
+    dateDue: null,
+    priority: 2,
+    status: "done",
+    components: ["lower_monolith"],
+    confidence: 85,
+    conclusion: "Valid Design",
+    reportPath: null,
+    createdAt: "2023-12-01T10:00:00Z",
+    updatedAt: "2023-12-01T15:00:00Z"
   }
 ];
 
 const files: File[] = [];
 
 let nextUserId = 3;
-let nextProjectId = 3;
-let nextJobId = 3;
+let nextProjectId = 4;
+let nextJobId = 4;
 let nextFileId = 1;
 
 export class DatabaseStorage implements IStorage {
@@ -149,14 +173,23 @@ export class DatabaseStorage implements IStorage {
     sortBy?: string; 
     sortOrder?: "asc" | "desc";
     projectId?: number;
+    includeArchived?: boolean;
   }): Promise<(Job & { projectName: string })[]> {
-    let result = jobs.map(job => {
+    let result: (Job & { projectName: string })[] = [];
+    
+    for (const job of jobs) {
       const project = projects.find(p => p.id === job.projectId);
-      return {
+      
+      // Skip jobs from archived projects unless explicitly requested
+      if (!filters?.includeArchived && project?.archived) {
+        continue;
+      }
+      
+      result.push({
         ...job,
         projectName: project?.name || "Unknown Project"
-      };
-    });
+      });
+    }
     
     if (filters) {
       if (filters.projectId) {

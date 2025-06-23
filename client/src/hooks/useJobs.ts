@@ -8,7 +8,8 @@ export function useJobs(filters?: {
   bench?: string; 
   search?: string; 
   sortBy?: string; 
-  sortOrder?: "asc" | "desc" 
+  sortOrder?: "asc" | "desc";
+  includeArchived?: boolean;
 }) {
   return useQuery({
     queryKey: ["/api/jobs", filters],

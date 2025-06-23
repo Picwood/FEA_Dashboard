@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -17,8 +17,8 @@ import { useProjects, useCreateProject } from "../hooks/useProjects";
 import { useToast } from "@/hooks/use-toast";
 
 const newJobSchema = z.object({
-  projectId: z.number().min(1, "Project is required"),
-  projectName: z.string().optional(), // For creating new projects
+  projectId: z.number().optional(),
+  projectName: z.string().optional(),
   simulationName: z.string().min(1, "Simulation name is required"),
   bench: z.enum(["symmetric-bending", "brake-load", "unknown"]),
   type: z.enum(["static", "fatigue"]),
@@ -26,6 +26,12 @@ const newJobSchema = z.object({
   dateDue: z.string().optional(),
   priority: z.number().min(1).max(5),
   components: z.array(z.string()).min(1, "At least one component must be selected"),
+}).refine((data) => {
+  // Either projectId (existing project) or projectName (new project) must be provided
+  return (data.projectId && data.projectId > 0) || (data.projectName && data.projectName.trim().length > 0);
+}, {
+  message: "Project is required - either select an existing project or provide a new project name",
+  path: ["projectId"], // This will show the error on the projectId field
 });
 
 type NewJobForm = z.infer<typeof newJobSchema>;
@@ -49,6 +55,14 @@ export default function NewRequest() {
   const createProjectMutation = useCreateProject();
   const { toast } = useToast();
 
+  // Debug logging for location changes
+  useEffect(() => {
+    console.log("NewRequest component mounted");
+    return () => {
+      console.log("🚨 NewRequest component unmounting!");
+    };
+  }, []);
+
   const form = useForm<NewJobForm>({
     resolver: zodResolver(newJobSchema),
     defaultValues: {
@@ -62,9 +76,56 @@ export default function NewRequest() {
       priority: 3,
       components: [],
     },
+    mode: "onSubmit", // Only validate on submit, not on change
   });
 
+  // Debug logging for step changes
+  useEffect(() => {
+    console.log("Current step changed to:", currentStep);
+    if (currentStep === 5) {
+      console.log("Rendering Step 5 - Details");
+      console.log("Form state:", form.getValues());
+      console.log("Form errors:", form.formState.errors);
+    }
+  }, [currentStep, form]);
+
+  // Debug logging for form state changes
+  useEffect(() => {
+    console.log("Form state changed:", {
+      isSubmitting: form.formState.isSubmitting,
+      isValid: form.formState.isValid,
+      errors: form.formState.errors,
+    });
+  }, [form.formState.isSubmitting, form.formState.isValid, form.formState.errors]);
+
   const handleNext = () => {
+    console.log("handleNext called, currentStep:", currentStep);
+    
+    // Step-by-step validation
+    if (currentStep === 0) {
+      // Validate project selection
+      if (!isNewProject) {
+        if (!form.getValues("projectId") || form.getValues("projectId") === 0) {
+          form.setError("projectId", { message: "Please select a project" });
+          return;
+        }
+      } else {
+        const projectName = form.getValues("projectName");
+        if (!projectName || projectName.trim() === "") {
+          form.setError("projectName", { message: "Please enter a project name" });
+          return;
+        }
+      }
+    }
+    
+    if (currentStep === 1) {
+      // Validate simulation name
+      if (!form.getValues("simulationName") || form.getValues("simulationName").trim() === "") {
+        form.setError("simulationName", { message: "Simulation name is required" });
+        return;
+      }
+    }
+    
     if (currentStep === 4) {
       // Validate components before proceeding
       if (selectedComponents.length === 0) {
@@ -75,7 +136,10 @@ export default function NewRequest() {
     }
     
     if (currentStep < steps.length - 1) {
+      console.log("Moving to next step:", currentStep + 1);
       setCurrentStep(currentStep + 1);
+    } else {
+      console.log("Already on final step, not advancing");
     }
   };
 
@@ -100,6 +164,15 @@ export default function NewRequest() {
   };
 
   const onSubmit = async (data: NewJobForm) => {
+    console.log("🚨 onSubmit called! Current step:", currentStep, "Expected final step:", steps.length - 1);
+    
+    // Only allow submission if we're on the final step
+    if (currentStep !== steps.length - 1) {
+      console.log("❌ Form submission prevented - not on final step. Current step:", currentStep);
+      return;
+    }
+
+    console.log("✅ Proceeding with form submission...");
     try {
       let projectId = data.projectId;
 
@@ -113,7 +186,7 @@ export default function NewRequest() {
       }
 
       await createJobMutation.mutateAsync({
-        projectId,
+        projectId: projectId!,
         simulationName: data.simulationName,
         bench: data.bench,
         type: data.type,
@@ -128,8 +201,10 @@ export default function NewRequest() {
         title: "Success",
         description: "Simulation job created successfully",
       });
+      console.log("✅ Job created successfully, navigating to dashboard...");
       setLocation("/");
     } catch (error) {
+      console.error("❌ Error creating job:", error);
       toast({
         title: "Error",
         description: "Failed to create simulation job",
@@ -152,7 +227,10 @@ export default function NewRequest() {
               <h2 className="text-xl font-semibold text-gray-900">New Request Wizard</h2>
               <p className="text-sm text-gray-500 mt-1">Create a new FEA simulation job</p>
             </div>
-            <Button variant="outline" onClick={() => setLocation("/")}>
+            <Button variant="outline" onClick={() => {
+              console.log("🚨 Cancel button clicked - navigating to dashboard");
+              setLocation("/");
+            }}>
               Cancel
             </Button>
           </div>
@@ -173,7 +251,27 @@ export default function NewRequest() {
             </div>
 
             <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+              <form 
+                onSubmit={(e) => {
+                  console.log("🚨 Form onSubmit event triggered!", e);
+                  console.log("Event target:", e.target);
+                  console.log("Event type:", e.type);
+                  form.handleSubmit(onSubmit)(e);
+                }} 
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    console.log("🎯 Enter key pressed at step:", currentStep);
+                    if (currentStep !== steps.length - 1) {
+                      console.log("🛑 Preventing Enter and calling handleNext");
+                      e.preventDefault();
+                      handleNext();
+                    } else {
+                      console.log("✅ Enter allowed on final step");
+                    }
+                  }
+                }}
+                className="space-y-6"
+              >
                 <Card>
                   <CardContent className="p-6">
                     {/* Step 0: Project */}
@@ -203,7 +301,7 @@ export default function NewRequest() {
                             render={({ field }) => (
                               <FormItem>
                                 <FormLabel>Select Project</FormLabel>
-                                <Select onValueChange={(value) => field.onChange(parseInt(value))} value={field.value.toString()}>
+                                <Select onValueChange={(value) => field.onChange(parseInt(value))} value={field.value?.toString() || "0"}>
                                   <FormControl>
                                     <SelectTrigger>
                                       <SelectValue placeholder="Choose an existing project" />
@@ -444,20 +542,20 @@ export default function NewRequest() {
                             <div>
                               <span className="text-gray-600">Project:</span>
                               <span className="ml-2 font-medium">
-                                {isNewProject ? form.watch("projectName") : projects.find(p => p.id === form.watch("projectId"))?.name}
+                                {isNewProject ? (form.getValues("projectName") || "Not specified") : (projects.find(p => p.id === form.getValues("projectId"))?.name || "Not selected")}
                               </span>
                             </div>
                             <div>
                               <span className="text-gray-600">Simulation:</span>
-                              <span className="ml-2 font-medium">{form.watch("simulationName")}</span>
+                              <span className="ml-2 font-medium">{form.getValues("simulationName") || "Not specified"}</span>
                             </div>
                             <div>
                               <span className="text-gray-600">Bench:</span>
-                              <span className="ml-2 font-medium">{form.watch("bench")}</span>
+                              <span className="ml-2 font-medium">{form.getValues("bench")}</span>
                             </div>
                             <div>
                               <span className="text-gray-600">Type:</span>
-                              <span className="ml-2 font-medium">{form.watch("type")}</span>
+                              <span className="ml-2 font-medium">{form.getValues("type")}</span>
                             </div>
                             <div>
                               <span className="text-gray-600">Components:</span>
@@ -484,7 +582,12 @@ export default function NewRequest() {
                   
                   {currentStep === steps.length - 1 ? (
                     <Button 
-                      type="submit" 
+                      type="button"
+                      onClick={(e) => {
+                        console.log("🎯 Create Job button clicked manually");
+                        e.preventDefault();
+                        form.handleSubmit(onSubmit)();
+                      }}
                       disabled={createJobMutation.isPending}
                     >
                       {createJobMutation.isPending ? "Creating..." : "Create Job"}

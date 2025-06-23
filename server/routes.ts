@@ -97,7 +97,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Job routes
   app.get("/api/jobs", requireAuth, async (req, res) => {
     try {
-      const { status, bench, search, sortBy, sortOrder, projectId } = req.query;
+      const { status, bench, search, sortBy, sortOrder, projectId, includeArchived } = req.query;
       const jobs = await storage.getJobs({
         status: status as string,
         bench: bench as string,
@@ -105,6 +105,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         sortBy: sortBy as string,
         sortOrder: sortOrder as "asc" | "desc",
         projectId: projectId ? parseInt(projectId as string) : undefined,
+        includeArchived: includeArchived === "true",
       });
       res.json(jobs);
     } catch (error) {
@@ -132,20 +133,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(job);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch job" });
-    }
-  });
-
-  app.put("/api/jobs/:id", requireAuth, async (req, res) => {
-    try {
-      const id = parseInt(req.params.id);
-      const updates = req.body;
-      const job = await storage.updateJob(id, updates);
-      if (!job) {
-        return res.status(404).json({ message: "Job not found" });
-      }
-      res.json(job);
-    } catch (error) {
-      res.status(500).json({ message: "Failed to update job" });
     }
   });
 
@@ -196,10 +183,101 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/jobs/:id/files", requireAuth, async (req, res) => {
     try {
-      // Simplified file upload endpoint (no actual file handling for demo)
-      res.status(201).json([]);
+      const jobId = parseInt(req.params.id);
+      const { label } = req.body;
+      
+      // For now, just simulate saving a report file
+      if (label === "report") {
+        // Update the job with a dummy report path
+        const reportPath = `reports/job_${jobId}_report.html`;
+        await storage.updateJob(jobId, { reportPath });
+        
+        res.status(201).json({ 
+          id: Date.now(),
+          jobId,
+          label,
+          filename: "report.html",
+          path: reportPath,
+          mimetype: "text/html",
+          size: 1024,
+          uploadedAt: new Date().toISOString()
+        });
+      } else {
+        res.status(201).json([]);
+      }
     } catch (error) {
       res.status(500).json({ message: "File upload failed" });
+    }
+  });
+
+  // Route to serve report files
+  app.get("/api/files/:path(*)", requireAuth, async (req, res) => {
+    try {
+      const filePath = req.params.path;
+      // For demo purposes, return a simple HTML report
+      if (filePath.includes("report.html")) {
+        const htmlContent = `
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <title>FEA Simulation Report</title>
+            <style>
+              body { font-family: Arial, sans-serif; margin: 20px; }
+              .header { color: #2563eb; border-bottom: 2px solid #2563eb; padding-bottom: 10px; }
+              .section { margin: 20px 0; }
+              .result { background: #f0f9ff; padding: 15px; border-radius: 5px; }
+            </style>
+          </head>
+          <body>
+            <div class="header">
+              <h1>FEA Simulation Report</h1>
+              <p>Generated on ${new Date().toLocaleDateString()}</p>
+            </div>
+            
+            <div class="section">
+              <h2>Analysis Summary</h2>
+              <div class="result">
+                <p><strong>Status:</strong> Completed Successfully</p>
+                <p><strong>Convergence:</strong> Achieved</p>
+                <p><strong>Maximum Stress:</strong> 185.2 MPa</p>
+                <p><strong>Maximum Displacement:</strong> 2.34 mm</p>
+              </div>
+            </div>
+            
+            <div class="section">
+              <h2>Conclusion</h2>
+              <p>The analysis shows that the design meets all safety requirements with acceptable stress levels and deformation.</p>
+            </div>
+          </body>
+          </html>
+        `;
+        res.setHeader('Content-Type', 'text/html');
+        res.send(htmlContent);
+      } else {
+        res.status(404).json({ message: "File not found" });
+      }
+    } catch (error) {
+      res.status(500).json({ message: "Failed to serve file" });
+    }
+  });
+
+  // Route to update simulation analysis results
+  app.put("/api/jobs/:id/analysis", requireAuth, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const { confidence, conclusion } = req.body;
+      
+      const updates: any = {};
+      if (confidence !== undefined) updates.confidence = confidence;
+      if (conclusion !== undefined) updates.conclusion = conclusion;
+      
+      const job = await storage.updateJob(id, updates);
+      if (!job) {
+        return res.status(404).json({ message: "Job not found" });
+      }
+      res.json(job);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to update analysis results" });
     }
   });
 

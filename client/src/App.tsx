@@ -9,6 +9,7 @@ import { useEffect } from "react";
 
 import Dashboard from "./pages/Dashboard";
 import Projects from "./pages/Projects";
+import ProjectDetail from "./pages/ProjectDetail";
 import NewRequest from "./pages/NewRequest";
 import JobDetail from "./pages/JobDetail";
 import Login from "./pages/Login";
@@ -52,6 +53,7 @@ function Router() {
       <Route path="/login" component={Login} />
       <Route path="/" component={Dashboard} />
       <Route path="/projects" component={Projects} />
+      <Route path="/project/:projectId" component={ProjectDetail} />
       <Route path="/new" component={NewRequest} />
       <Route path="/job/:id" component={JobDetail} />
       <Route component={NotFound} />

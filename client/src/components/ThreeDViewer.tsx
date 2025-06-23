@@ -61,6 +61,7 @@ export default function ThreeDViewer({
               return (
                 <Button
                   key={component.id}
+                  type="button"
                   variant={isSelected ? "default" : "outline"}
                   size="sm"
                   onClick={() => handleComponentToggle(component.id)}
@@ -75,10 +76,10 @@ export default function ThreeDViewer({
       </div>
       
       <div className="absolute top-4 right-4 space-y-2">
-        <Button variant="outline" size="sm" onClick={selectAll}>
+        <Button type="button" variant="outline" size="sm" onClick={selectAll}>
           Select All
         </Button>
-        <Button variant="outline" size="sm" onClick={clearSelection}>
+        <Button type="button" variant="outline" size="sm" onClick={clearSelection}>
           Clear
         </Button>
       </div>

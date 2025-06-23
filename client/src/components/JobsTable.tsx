@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -243,7 +243,7 @@ export default function JobsTable({ onJobSelect }: JobsTableProps) {
                 </TableHeader>
                 <TableBody>
                   {Object.values(projectGroups).map((project) => (
-                    <>
+                    <React.Fragment key={project.projectName}>
                       <TableRow
                         key={`project-${project.projectName}`}
                         className="hover:bg-blue-50 cursor-pointer border-b-2 border-blue-100"
@@ -330,7 +330,7 @@ export default function JobsTable({ onJobSelect }: JobsTableProps) {
                           </TableRow>
                         ))
                       }
-                    </>
+                    </React.Fragment>
                   ))}
                 </TableBody>
               </Table>

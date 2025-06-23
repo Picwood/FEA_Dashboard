@@ -15,6 +15,7 @@ import Sidebar from "../components/Sidebar";
 import { useProjects, useCreateProject, useArchiveProject } from "../hooks/useProjects";
 import { useJobs } from "../hooks/useJobs";
 import { useToast } from "@/hooks/use-toast";
+import { useLocation } from "wouter";
 
 const newProjectSchema = z.object({
   name: z.string().min(1, "Project name is required"),
@@ -26,10 +27,11 @@ export default function Projects() {
   const [search, setSearch] = useState("");
   const [isNewProjectModalOpen, setIsNewProjectModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("active");
+  const [, setLocation] = useLocation();
   
   const { data: activeProjects = [] } = useProjects(false);
   const { data: archivedProjects = [] } = useProjects(true);
-  const { data: allJobs = [] } = useJobs();
+  const { data: allJobs = [] } = useJobs({ includeArchived: true });
   const createProjectMutation = useCreateProject();
   const archiveProjectMutation = useArchiveProject();
   const { toast } = useToast();
@@ -195,7 +197,7 @@ export default function Projects() {
                         {filteredActiveProjects.map((project) => {
                           const stats = getProjectStats(project.id);
                           return (
-                            <TableRow key={project.id}>
+                            <TableRow key={project.id} className="cursor-pointer hover:bg-gray-50" onClick={() => setLocation(`/project/${project.id}`)}>
                               <TableCell className="font-medium">{project.name}</TableCell>
                               <TableCell>
                                 <span className="text-sm text-gray-600">{stats.total} simulations</span>
@@ -211,7 +213,7 @@ export default function Projects() {
                               <TableCell>
                                 <div className="flex items-center gap-1 text-sm text-gray-500">
                                   <Calendar className="h-3 w-3" />
-                                  {new Date(project.createdAt).toLocaleDateString()}
+                                  {project.createdAt ? new Date(project.createdAt).toLocaleDateString() : "Unknown"}
                                 </div>
                               </TableCell>
                               <TableCell>
@@ -255,7 +257,7 @@ export default function Projects() {
                         {filteredArchivedProjects.map((project) => {
                           const stats = getProjectStats(project.id);
                           return (
-                            <TableRow key={project.id}>
+                            <TableRow key={project.id} className="cursor-pointer hover:bg-gray-50" onClick={() => setLocation(`/project/${project.id}`)}>
                               <TableCell className="font-medium text-gray-500">{project.name}</TableCell>
                               <TableCell>
                                 <span className="text-sm text-gray-600">{stats.total} simulations</span>
@@ -263,7 +265,7 @@ export default function Projects() {
                               <TableCell>
                                 <div className="flex items-center gap-1 text-sm text-gray-500">
                                   <Calendar className="h-3 w-3" />
-                                  {new Date(project.createdAt).toLocaleDateString()}
+                                  {project.createdAt ? new Date(project.createdAt).toLocaleDateString() : "Unknown"}
                                 </div>
                               </TableCell>
                             </TableRow>

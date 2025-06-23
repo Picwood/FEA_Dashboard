@@ -20,13 +20,14 @@ export const api = {
   },
   
   jobs: {
-    list: async (filters?: { status?: string; bench?: string; search?: string; sortBy?: string; sortOrder?: "asc" | "desc" }) => {
+    list: async (filters?: { status?: string; bench?: string; search?: string; sortBy?: string; sortOrder?: "asc" | "desc"; includeArchived?: boolean }) => {
       const params = new URLSearchParams();
       if (filters?.status) params.append("status", filters.status);
       if (filters?.bench) params.append("bench", filters.bench);
       if (filters?.search) params.append("search", filters.search);
       if (filters?.sortBy) params.append("sortBy", filters.sortBy);
       if (filters?.sortOrder) params.append("sortOrder", filters.sortOrder);
+      if (filters?.includeArchived !== undefined) params.append("includeArchived", filters.includeArchived.toString());
       
       const res = await apiRequest("GET", `/api/jobs?${params.toString()}`);
       return res.json() as Promise<JobWithProject[]>;

@@ -26,6 +26,9 @@ export const jobs = sqliteTable("jobs", {
   priority: integer("priority").notNull(), // 1-5
   status: text("status").notNull(), // queued, running, done, failed
   components: text("components", { mode: "json" }).$type<string[]>(),
+  confidence: integer("confidence"), // percentage 0-100
+  conclusion: text("conclusion"), // Valid Design, Revise Design, no convergence, other
+  reportPath: text("report_path"), // path to uploaded HTML report file
   createdAt: text("created_at").default("CURRENT_TIMESTAMP"),
   updatedAt: text("updated_at"),
 });
