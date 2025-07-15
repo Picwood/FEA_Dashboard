@@ -1,4 +1,7 @@
 import { type User, type Job, type File, type Project, type InsertUser, type InsertJob, type InsertFile, type InsertProject } from "@shared/schema";
+import { db } from "./database";
+import { users, projects, jobs, files } from "@shared/schema";
+import { eq, and, like, desc, asc } from "drizzle-orm";
 
 export interface IStorage {
   // User methods
@@ -15,7 +18,7 @@ export interface IStorage {
   archiveProject(id: number): Promise<boolean>;
 
   // Job methods
-  getJobs(filters?: { status?: string; bench?: string; search?: string; sortBy?: string; sortOrder?: "asc" | "desc"; projectId?: number }): Promise<(Job & { projectName: string })[]>;
+  getJobs(filters?: { status?: string; bench?: string; search?: string; sortBy?: string; sortOrder?: "asc" | "desc"; projectId?: number; includeArchived?: boolean }): Promise<(Job & { projectName: string })[]>;
   getJob(id: number): Promise<(Job & { projectName: string }) | undefined>;
   createJob(job: InsertJob): Promise<Job>;
   updateJob(id: number, updates: Partial<InsertJob>): Promise<Job | undefined>;
@@ -28,144 +31,66 @@ export interface IStorage {
   deleteFile(id: number): Promise<boolean>;
 }
 
-// In-memory storage
-const users: User[] = [
-  { id: 1, username: "admin", passwordHash: "admin" },
-  { id: 2, username: "engineer", passwordHash: "engineer123" },
-];
-
-const projects: Project[] = [
-  { id: 1, name: "AION36", archived: false, createdAt: "2024-01-15T10:00:00Z" },
-  { id: 2, name: "NRX32-IL", archived: false, createdAt: "2024-01-10T09:00:00Z" },
-  { id: 3, name: "Legacy-OldProject", archived: true, createdAt: "2023-12-01T10:00:00Z" },
-];
-
-const jobs: Job[] = [
-  {
-    id: 1,
-    projectId: 1,
-    simulationName: "Static Analysis - Main Fork",
-    bench: "symmetric-bending",
-    type: "static",
-    dateRequest: "2024-01-15",
-    dateDue: "2024-02-15",
-    priority: 4,
-    status: "running",
-    components: ["lower_monolith", "crown"],
-    confidence: null,
-    conclusion: null,
-    reportPath: null,
-    createdAt: "2024-01-15T10:00:00Z",
-    updatedAt: "2024-01-16T14:30:00Z"
-  },
-  {
-    id: 2,
-    projectId: 2,
-    simulationName: "Fatigue Analysis - Brake Load",
-    bench: "brake-load",
-    type: "fatigue",
-    dateRequest: "2024-01-10",
-    dateDue: "2024-01-30",
-    priority: 3,
-    status: "queued",
-    components: ["stanchion_left", "stanchion_right", "steerer"],
-    confidence: null,
-    conclusion: null,
-    reportPath: null,
-    createdAt: "2024-01-10T09:00:00Z",
-    updatedAt: "2024-01-10T09:00:00Z"
-  },
-  {
-    id: 3,
-    projectId: 3,
-    simulationName: "Old Legacy Test",
-    bench: "unknown",
-    type: "static",
-    dateRequest: "2023-12-01",
-    dateDue: null,
-    priority: 2,
-    status: "done",
-    components: ["lower_monolith"],
-    confidence: 85,
-    conclusion: "Valid Design",
-    reportPath: null,
-    createdAt: "2023-12-01T10:00:00Z",
-    updatedAt: "2023-12-01T15:00:00Z"
-  }
-];
-
-const files: File[] = [];
-
-let nextUserId = 3;
-let nextProjectId = 4;
-let nextJobId = 4;
-let nextFileId = 1;
-
 export class DatabaseStorage implements IStorage {
+  // User methods
   async getUser(id: number): Promise<User | undefined> {
-    return users.find(u => u.id === id);
+    const result = await db.select().from(users).where(eq(users.id, id)).limit(1);
+    return result[0];
   }
 
   async getUserByUsername(username: string): Promise<User | undefined> {
-    return users.find(u => u.username === username);
+    const result = await db.select().from(users).where(eq(users.username, username)).limit(1);
+    return result[0];
   }
 
   async createUser(user: InsertUser): Promise<User> {
-    const newUser: User = {
-      id: nextUserId++,
-      username: user.username,
-      passwordHash: user.passwordHash,
-    };
-    users.push(newUser);
-    return newUser;
+    const result = await db.insert(users).values(user).returning();
+    return result[0];
   }
 
   // Project methods
   async getProjects(archived?: boolean): Promise<Project[]> {
     if (archived !== undefined) {
-      return projects.filter(p => p.archived === archived);
+      return await db.select().from(projects).where(eq(projects.archived, archived));
     }
-    return projects;
+    return await db.select().from(projects);
   }
 
   async getProject(id: number): Promise<Project | undefined> {
-    return projects.find(p => p.id === id);
+    const result = await db.select().from(projects).where(eq(projects.id, id)).limit(1);
+    return result[0];
   }
 
   async getProjectByName(name: string): Promise<Project | undefined> {
-    return projects.find(p => p.name === name);
+    const result = await db.select().from(projects).where(eq(projects.name, name)).limit(1);
+    return result[0];
   }
 
   async createProject(project: InsertProject): Promise<Project> {
-    const newProject: Project = {
-      id: nextProjectId++,
-      name: project.name,
-      archived: project.archived || false,
+    const result = await db.insert(projects).values({
+      ...project,
       createdAt: new Date().toISOString(),
-    };
-    projects.push(newProject);
-    return newProject;
+    }).returning();
+    return result[0];
   }
 
   async updateProject(id: number, updates: Partial<InsertProject>): Promise<Project | undefined> {
-    const projectIndex = projects.findIndex(p => p.id === id);
-    if (projectIndex === -1) return undefined;
-    
-    projects[projectIndex] = {
-      ...projects[projectIndex],
-      ...updates,
-    };
-    return projects[projectIndex];
+    const result = await db.update(projects)
+      .set(updates)
+      .where(eq(projects.id, id))
+      .returning();
+    return result[0];
   }
 
   async archiveProject(id: number): Promise<boolean> {
-    const projectIndex = projects.findIndex(p => p.id === id);
-    if (projectIndex === -1) return false;
-    
-    projects[projectIndex].archived = true;
-    return true;
+    const result = await db.update(projects)
+      .set({ archived: true })
+      .where(eq(projects.id, id))
+      .returning();
+    return result.length > 0;
   }
 
+  // Job methods
   async getJobs(filters?: { 
     status?: string; 
     bench?: string; 
@@ -175,149 +100,209 @@ export class DatabaseStorage implements IStorage {
     projectId?: number;
     includeArchived?: boolean;
   }): Promise<(Job & { projectName: string })[]> {
-    let result: (Job & { projectName: string })[] = [];
-    
-    for (const job of jobs) {
-      const project = projects.find(p => p.id === job.projectId);
-      
-      // Skip jobs from archived projects unless explicitly requested
-      if (!filters?.includeArchived && project?.archived) {
-        continue;
+    const allJobs = await db
+      .select({
+        id: jobs.id,
+        projectId: jobs.projectId,
+        simulationName: jobs.simulationName,
+        bench: jobs.bench,
+        type: jobs.type,
+        dateRequest: jobs.dateRequest,
+        dateDue: jobs.dateDue,
+        priority: jobs.priority,
+        status: jobs.status,
+        components: jobs.components,
+        confidence: jobs.confidence,
+        conclusion: jobs.conclusion,
+        reportPath: jobs.reportPath,
+        createdAt: jobs.createdAt,
+        updatedAt: jobs.updatedAt,
+        projectName: projects.name,
+        projectArchived: projects.archived,
+      })
+      .from(jobs)
+      .leftJoin(projects, eq(jobs.projectId, projects.id));
+
+    // Apply filters in JavaScript for now to avoid TypeScript issues
+    let filteredJobs = allJobs.filter(row => {
+      // Skip archived projects unless explicitly requested
+      if (!filters?.includeArchived && row.projectArchived) {
+        return false;
       }
       
-      result.push({
-        ...job,
-        projectName: project?.name || "Unknown Project"
+      if (filters?.projectId && row.projectId !== filters.projectId) {
+        return false;
+      }
+      
+      if (filters?.status && row.status !== filters.status) {
+        return false;
+      }
+      
+      if (filters?.bench && row.bench !== filters.bench) {
+        return false;
+      }
+      
+      if (filters?.search) {
+        const searchLower = filters.search.toLowerCase();
+        const projectName = row.projectName || "";
+        if (!projectName.toLowerCase().includes(searchLower) &&
+            !row.simulationName.toLowerCase().includes(searchLower)) {
+          return false;
+        }
+      }
+      
+      return true;
+    });
+
+    // Apply sorting
+    if (filters?.sortBy && filters?.sortOrder) {
+      filteredJobs.sort((a, b) => {
+        const aVal = a[filters.sortBy as keyof typeof a];
+        const bVal = b[filters.sortBy as keyof typeof b];
+        const order = filters.sortOrder === "desc" ? -1 : 1;
+        
+        if (aVal == null && bVal == null) return 0;
+        if (aVal == null) return 1 * order;
+        if (bVal == null) return -1 * order;
+        if (aVal < bVal) return -1 * order;
+        if (aVal > bVal) return 1 * order;
+        return 0;
       });
     }
     
-    if (filters) {
-      if (filters.projectId) {
-        result = result.filter(job => job.projectId === filters.projectId);
-      }
-      
-      if (filters.status) {
-        result = result.filter(job => job.status === filters.status);
-      }
-      
-      if (filters.bench) {
-        result = result.filter(job => job.bench === filters.bench);
-      }
-      
-      if (filters.search) {
-        const searchLower = filters.search.toLowerCase();
-        result = result.filter(job => 
-          job.projectName.toLowerCase().includes(searchLower) ||
-          job.simulationName.toLowerCase().includes(searchLower) ||
-          job.type.toLowerCase().includes(searchLower) ||
-          job.bench.toLowerCase().includes(searchLower) ||
-          job.status.toLowerCase().includes(searchLower)
-        );
-      }
-      
-      if (filters.sortBy) {
-        result.sort((a, b) => {
-          const aVal = a[filters.sortBy as keyof Job];
-          const bVal = b[filters.sortBy as keyof Job];
-          const order = filters.sortOrder === "desc" ? -1 : 1;
-          
-          if (aVal == null && bVal == null) return 0;
-          if (aVal == null) return 1 * order;
-          if (bVal == null) return -1 * order;
-          if (aVal < bVal) return -1 * order;
-          if (aVal > bVal) return 1 * order;
-          return 0;
-        });
-      }
-    }
-    
-    return result;
+    return filteredJobs.map(row => ({
+      id: row.id,
+      projectId: row.projectId,
+      simulationName: row.simulationName,
+      bench: row.bench,
+      type: row.type,
+      dateRequest: row.dateRequest,
+      dateDue: row.dateDue,
+      priority: row.priority,
+      status: row.status,
+      components: row.components,
+      confidence: row.confidence,
+      conclusion: row.conclusion,
+      reportPath: row.reportPath,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+      projectName: row.projectName || "Unknown Project",
+    }));
   }
 
   async getJob(id: number): Promise<(Job & { projectName: string }) | undefined> {
-    const job = jobs.find(j => j.id === id);
-    if (!job) return undefined;
-    
-    const project = projects.find(p => p.id === job.projectId);
+    const result = await db
+      .select({
+        id: jobs.id,
+        projectId: jobs.projectId,
+        simulationName: jobs.simulationName,
+        bench: jobs.bench,
+        type: jobs.type,
+        dateRequest: jobs.dateRequest,
+        dateDue: jobs.dateDue,
+        priority: jobs.priority,
+        status: jobs.status,
+        components: jobs.components,
+        confidence: jobs.confidence,
+        conclusion: jobs.conclusion,
+        reportPath: jobs.reportPath,
+        createdAt: jobs.createdAt,
+        updatedAt: jobs.updatedAt,
+        projectName: projects.name,
+      })
+      .from(jobs)
+      .leftJoin(projects, eq(jobs.projectId, projects.id))
+      .where(eq(jobs.id, id))
+      .limit(1);
+
+    if (result.length === 0) return undefined;
+
+    const row = result[0];
     return {
-      ...job,
-      projectName: project?.name || "Unknown Project"
+      id: row.id,
+      projectId: row.projectId,
+      simulationName: row.simulationName,
+      bench: row.bench,
+      type: row.type,
+      dateRequest: row.dateRequest,
+      dateDue: row.dateDue,
+      priority: row.priority,
+      status: row.status,
+      components: row.components,
+      confidence: row.confidence,
+      conclusion: row.conclusion,
+      reportPath: row.reportPath,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+      projectName: row.projectName || "Unknown Project",
     };
   }
 
   async createJob(job: InsertJob): Promise<Job> {
-    const newJob: Job = {
-      id: nextJobId++,
+    const jobData = {
       projectId: job.projectId,
       simulationName: job.simulationName,
       bench: job.bench,
       type: job.type,
       dateRequest: job.dateRequest,
-      dateDue: job.dateDue || null,
+      dateDue: job.dateDue,
       priority: job.priority,
       status: job.status,
-      components: (job.components as string[]) || [],
-      confidence: null,
-      conclusion: null,
-      reportPath: null,
+      components: job.components as string[] | null,
+      confidence: job.confidence,
+      conclusion: job.conclusion,
+      reportPath: job.reportPath,
       createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
     };
-    jobs.push(newJob);
-    return newJob;
+    
+    const result = await db.insert(jobs).values(jobData).returning();
+    return result[0];
   }
 
   async updateJob(id: number, updates: Partial<InsertJob>): Promise<Job | undefined> {
-    const jobIndex = jobs.findIndex(j => j.id === id);
-    if (jobIndex === -1) return undefined;
-    
-    const updatedJob = {
-      ...jobs[jobIndex],
+    const updateData: any = {
       ...updates,
-      components: (updates.components as string[]) || jobs[jobIndex].components,
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
     };
-    jobs[jobIndex] = updatedJob;
-    return jobs[jobIndex];
+    
+    if (updates.components !== undefined) {
+      updateData.components = updates.components as string[] | null;
+    }
+    
+    const result = await db.update(jobs)
+      .set(updateData)
+      .where(eq(jobs.id, id))
+      .returning();
+    return result[0];
   }
 
   async deleteJob(id: number): Promise<boolean> {
-    const jobIndex = jobs.findIndex(j => j.id === id);
-    if (jobIndex === -1) return false;
-    
-    jobs.splice(jobIndex, 1);
-    return true;
+    const result = await db.delete(jobs).where(eq(jobs.id, id)).returning();
+    return result.length > 0;
   }
 
+  // File methods
   async getJobFiles(jobId: number): Promise<File[]> {
-    return files.filter(f => f.jobId === jobId);
+    return await db.select().from(files).where(eq(files.jobId, jobId));
   }
 
   async createFile(file: InsertFile): Promise<File> {
-    const newFile: File = {
-      id: nextFileId++,
-      jobId: file.jobId,
-      label: file.label,
-      filename: file.filename,
-      path: file.path,
-      mimetype: file.mimetype,
-      size: file.size,
+    const result = await db.insert(files).values({
+      ...file,
       uploadedAt: new Date().toISOString(),
-    };
-    files.push(newFile);
-    return newFile;
+    }).returning();
+    return result[0];
   }
 
   async getFile(id: number): Promise<File | undefined> {
-    return files.find(f => f.id === id);
+    const result = await db.select().from(files).where(eq(files.id, id)).limit(1);
+    return result[0];
   }
 
   async deleteFile(id: number): Promise<boolean> {
-    const fileIndex = files.findIndex(f => f.id === id);
-    if (fileIndex === -1) return false;
-    
-    files.splice(fileIndex, 1);
-    return true;
+    const result = await db.delete(files).where(eq(files.id, id)).returning();
+    return result.length > 0;
   }
 }
 

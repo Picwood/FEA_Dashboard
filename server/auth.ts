@@ -1,4 +1,5 @@
 import { storage } from "./storage";
+const bcrypt = require("bcrypt");
 
 export interface AuthUser {
   id: number;
@@ -12,12 +13,9 @@ export async function authenticateUser(username: string, password: string): Prom
     return null;
   }
 
-  // Simple password check for demo (in production, use bcrypt)
-  const validCredentials = 
-    (username === "admin" && password === "admin") ||
-    (username === "engineer" && password === "engineer123");
-    
-  if (!validCredentials) {
+  // Use bcrypt to verify password
+  const isValidPassword = await bcrypt.compare(password, user.passwordHash);
+  if (!isValidPassword) {
     return null;
   }
 
