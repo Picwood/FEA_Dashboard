@@ -1,5 +1,5 @@
 import { storage } from "./storage";
-const bcrypt = require("bcrypt");
+import * as bcrypt from "bcrypt";
 
 export interface AuthUser {
   id: number;

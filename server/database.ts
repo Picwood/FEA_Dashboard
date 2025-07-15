@@ -1,7 +1,7 @@
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import Database from "better-sqlite3";
 import { users, projects, jobs, files } from "@shared/schema";
-const bcrypt = require("bcrypt");
+import * as bcrypt from "bcrypt";
 import path from "path";
 import fs from "fs";
 

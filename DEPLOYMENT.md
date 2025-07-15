@@ -13,7 +13,7 @@ This guide will help you deploy your FEA Dashboard application on a Raspberry Pi
 
 ### Local Machine Requirements
 - SSH client
-- SCP or SFTP capability
+- GitHub account access (for cloning the repository)
 
 ## 🔧 Step 1: Prepare Your Raspberry Pi
 
@@ -42,20 +42,34 @@ sudo apt install -y build-essential python3 sqlite3
 sudo npm install -g pm2
 ```
 
-## 📁 Step 2: Transfer Application Files
+## 📁 Step 2: Clone Repository
 
-From your local development machine:
+SSH into your Raspberry Pi and clone the repository directly:
 
 ```bash
-# Method 1: Using SCP
-scp -r FEA_Dashboard/ pi@YOUR_PI_IP:/tmp/
-
-# Method 2: Using rsync (if available)
-rsync -avz --exclude node_modules FEA_Dashboard/ pi@YOUR_PI_IP:/tmp/FEA_Dashboard/
-
-# Method 3: Using Git (if you have a repository)
+# SSH into your Pi
 ssh pi@YOUR_PI_IP
-git clone https://github.com/your-username/FEA_Dashboard.git /tmp/FEA_Dashboard
+
+# Install git if not present
+sudo apt install -y git
+
+# Clone the repository (replace YOUR_USERNAME with your GitHub username)
+git clone https://github.com/YOUR_USERNAME/FEA_Dashboard.git /tmp/FEA_Dashboard
+
+# For private repositories, you have several authentication options:
+
+# Option 1: Using Personal Access Token
+# git clone https://YOUR_USERNAME:YOUR_TOKEN@github.com/YOUR_USERNAME/FEA_Dashboard.git /tmp/FEA_Dashboard
+
+# Option 2: Using SSH (recommended for private repos)
+# First, set up SSH key on your Pi:
+# ssh-keygen -t ed25519 -C "your_email@example.com"
+# cat ~/.ssh/id_ed25519.pub  # Add this to your GitHub SSH keys
+# git clone git@github.com:YOUR_USERNAME/FEA_Dashboard.git /tmp/FEA_Dashboard
+
+# Option 3: Using GitHub CLI (if installed)
+# gh auth login
+# git clone https://github.com/YOUR_USERNAME/FEA_Dashboard.git /tmp/FEA_Dashboard
 ```
 
 ## ⚙️ Step 3: Run Deployment Scripts
@@ -63,8 +77,11 @@ git clone https://github.com/your-username/FEA_Dashboard.git /tmp/FEA_Dashboard
 SSH into your Raspberry Pi and run the deployment scripts:
 
 ```bash
-# Move application to proper location
-sudo mv /tmp/FEA_Dashboard /opt/fea-dashboard
+# Create application directory and move files
+sudo mkdir -p /opt/fea-dashboard
+sudo mv /tmp/FEA_Dashboard/* /opt/fea-dashboard/
+sudo mv /tmp/FEA_Dashboard/.* /opt/fea-dashboard/ 2>/dev/null || true
+sudo rmdir /tmp/FEA_Dashboard
 
 # Make scripts executable
 sudo chmod +x /opt/fea-dashboard/deploy/*.sh
@@ -201,9 +218,11 @@ sudo systemctl stop fea-dashboard
 # Backup data
 sudo cp -r /opt/fea-dashboard/data /opt/fea-dashboard/data.backup
 
-# Update application files
-# (transfer new files, then rebuild)
+# Update application files from GitHub
 cd /opt/fea-dashboard
+sudo -u feadash git pull origin main
+
+# Reinstall dependencies and rebuild
 sudo -u feadash npm install
 sudo -u feadash npm run build
 
@@ -324,6 +343,26 @@ If you encounter issues:
 - The application runs as a dedicated `feadash` user for security
 - Logs are rotated automatically by systemd
 - UFW firewall is configured for basic security
+
+## **🚀 Quick Deployment Summary**
+
+**SSH into your Raspberry Pi and run:**
+```bash
+# 1. Clone repository  
+git clone https://github.com/YOUR_USERNAME/FEA_Dashboard.git /tmp/FEA_Dashboard
+
+# 2. Deploy application
+sudo mkdir -p /opt/fea-dashboard
+sudo mv /tmp/FEA_Dashboard/* /opt/fea-dashboard/
+sudo mv /tmp/FEA_Dashboard/.* /opt/fea-dashboard/ 2>/dev/null || true
+sudo rmdir /tmp/FEA_Dashboard
+cd /opt/fea-dashboard
+sudo bash deploy/raspberry-pi-setup.sh
+sudo bash deploy/setup-service.sh
+sudo systemctl start fea-dashboard
+```
+
+**Access your dashboard at:** `http://YOUR_PI_IP:5000`
 
 ---
 
