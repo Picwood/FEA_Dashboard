@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,6 +12,7 @@ import { Upload, ExternalLink, Calendar, User, FileText, TrendingUp, CheckCircle
 import { useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import Sidebar from "../components/Sidebar";
+import VtkViewer from "../components/VtkViewer";
 import { useJobs } from "../hooks/useJobs";
 import { useProjects } from "../hooks/useProjects";
 import { useToast } from "@/hooks/use-toast";
@@ -53,15 +54,62 @@ export default function ProjectDetail() {
   const queryClient = useQueryClient();
   const [uploadDialog, setUploadDialog] = useState<{ open: boolean; jobId?: number }>({ open: false });
   const [reportFile, setReportFile] = useState<File | null>(null);
+  const [vtkFile, setVtkFile] = useState<File | null>(null);
   const [editDialog, setEditDialog] = useState<{ open: boolean; jobId?: number; confidence?: number; conclusion?: string }>({ open: false });
   const [editConfidence, setEditConfidence] = useState<number>(0);
   const [editConclusion, setEditConclusion] = useState<string>("");
+  const [selectedVtkFile, setSelectedVtkFile] = useState<string | null>(null);
+  const [vtkFiles, setVtkFiles] = useState<any[]>([]);
 
   // Find the project
   const project = projects.find(p => p.id === parseInt(projectId || "0"));
   
-  // Filter jobs for this project
-  const projectJobs = jobs.filter(job => job.projectId === parseInt(projectId || "0"));
+  // Filter jobs for this project - memoized to prevent infinite loops
+  const projectJobs = useMemo(() => 
+    jobs.filter(job => job.projectId === parseInt(projectId || "0")),
+    [jobs, projectId]
+  );
+
+  // Fetch VTK files for the current project
+  useEffect(() => {
+    const fetchVtkFiles = async () => {
+      if (!projectJobs.length) {
+        setVtkFiles([]);
+        return;
+      }
+      
+      try {
+        const allVtkFiles = [];
+        
+        for (const job of projectJobs) {
+          const response = await fetch(`/api/jobs/${job.id}/files`, {
+            credentials: "include",
+          });
+          
+          if (response.ok) {
+            const files = await response.json();
+            const jobVtkFiles = files.filter((file: any) => file.label === "vtk");
+            
+            // Add job info to each file for display
+            const filesWithJobInfo = jobVtkFiles.map((file: any) => ({
+              ...file,
+              jobName: job.simulationName,
+              jobId: job.id
+            }));
+            
+            allVtkFiles.push(...filesWithJobInfo);
+          }
+        }
+        
+        setVtkFiles(allVtkFiles);
+      } catch (error) {
+        console.error("Error fetching VTK files:", error);
+        setVtkFiles([]);
+      }
+    };
+
+    fetchVtkFiles();
+  }, [projectJobs.length]); // Only depend on the length to avoid infinite loops
 
   if (!project) {
     return (
@@ -79,33 +127,63 @@ export default function ProjectDetail() {
     );
   }
 
-  const handleReportUpload = async (jobId: number) => {
-    if (!reportFile) {
+  const handleFilesUpload = async (jobId: number) => {
+    if (!reportFile && !vtkFile) {
       toast({
         title: "Error",
-        description: "Please select a file to upload",
+        description: "Please select at least one file to upload",
         variant: "destructive",
       });
       return;
     }
 
     try {
-      const formData = new FormData();
-      formData.append("file", reportFile);
-      formData.append("label", "report");
-
-      const response = await fetch(`/api/jobs/${jobId}/files`, {
-        method: "POST",
-        body: formData,
-      });
-
-      if (!response.ok) {
-        throw new Error("Upload failed");
+      const uploads = [];
+      
+      // Upload HTML report if provided
+      if (reportFile) {
+        const reportFormData = new FormData();
+        reportFormData.append("file", reportFile);
+        reportFormData.append("label", "report");
+        
+        uploads.push(
+          fetch(`/api/jobs/${jobId}/files`, {
+            method: "POST",
+            body: reportFormData,
+            credentials: "include",
+          })
+        );
       }
+      
+      // Upload VTK file if provided
+      if (vtkFile) {
+        const vtkFormData = new FormData();
+        vtkFormData.append("file", vtkFile);
+        vtkFormData.append("label", "vtk");
+        
+        uploads.push(
+          fetch(`/api/jobs/${jobId}/files`, {
+            method: "POST",
+            body: vtkFormData,
+            credentials: "include",
+          })
+        );
+      }
+
+      const responses = await Promise.all(uploads);
+      const failedUploads = responses.filter(response => !response.ok);
+      
+      if (failedUploads.length > 0) {
+        throw new Error("Some uploads failed");
+      }
+
+      const uploadedFiles = [];
+      if (reportFile) uploadedFiles.push("HTML report");
+      if (vtkFile) uploadedFiles.push("VTK file");
 
       toast({
         title: "Success",
-        description: "Report uploaded successfully",
+        description: `${uploadedFiles.join(" and ")} uploaded successfully`,
       });
       
       // Invalidate queries to refresh the job data
@@ -113,11 +191,12 @@ export default function ProjectDetail() {
       
       setUploadDialog({ open: false });
       setReportFile(null);
+      setVtkFile(null);
     } catch (error) {
       console.error("Upload error:", error);
       toast({
         title: "Error",
-        description: "Failed to upload report",
+        description: "Failed to upload files",
         variant: "destructive",
       });
     }
@@ -128,6 +207,8 @@ export default function ProjectDetail() {
     // Open report in new tab
     window.open(`/api/files/${reportPath}`, '_blank');
   };
+
+
 
   const handleEditAnalysis = (job: any) => {
     setEditConfidence(job.confidence || 0);
@@ -192,6 +273,21 @@ export default function ProjectDetail() {
     if (!conclusion) return <FileText className="h-4 w-4" />;
     const Icon = conclusionIcons[conclusion as keyof typeof conclusionIcons] || FileText;
     return <Icon className="h-4 w-4" />;
+  };
+
+  const getVtkFiles = async (jobId: number) => {
+    try {
+      const response = await fetch(`/api/jobs/${jobId}/files`, {
+        credentials: "include",
+      });
+      if (response.ok) {
+        const files = await response.json();
+        return files.filter((file: any) => file.label === "vtk");
+      }
+    } catch (error) {
+      console.error("Error fetching VTK files:", error);
+    }
+    return [];
   };
 
   const getConfidenceColor = (confidence?: number) => {
@@ -291,7 +387,7 @@ export default function ProjectDetail() {
                         <TableHead>Conclusion</TableHead>
                         <TableHead>Due Date</TableHead>
                         <TableHead>Priority</TableHead>
-                        <TableHead>Report</TableHead>
+                        <TableHead>Files</TableHead>
                         <TableHead>Actions</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -355,10 +451,10 @@ export default function ProjectDetail() {
                                   className="flex items-center space-x-1"
                                 >
                                   <ExternalLink className="h-3 w-3" />
-                                  <span>View</span>
+                                  <span>View Report</span>
                                 </Button>
                               ) : (
-                                <span className="text-xs text-gray-400">No report</span>
+                                <span className="text-xs text-gray-400">No files</span>
                               )}
                               
                               <Dialog 
@@ -377,11 +473,11 @@ export default function ProjectDetail() {
                                 </DialogTrigger>
                                 <DialogContent>
                                   <DialogHeader>
-                                    <DialogTitle>Upload Report</DialogTitle>
+                                    <DialogTitle>Upload Simulation Files</DialogTitle>
                                   </DialogHeader>
                                   <div className="space-y-4">
                                     <div>
-                                      <Label htmlFor="report-file">HTML Report File</Label>
+                                      <Label htmlFor="report-file">HTML Report File (Optional)</Label>
                                       <Input
                                         id="report-file"
                                         type="file"
@@ -389,13 +485,33 @@ export default function ProjectDetail() {
                                         onChange={(e) => setReportFile(e.target.files?.[0] || null)}
                                         className="mt-1"
                                       />
+                                      <p className="text-xs text-gray-500 mt-1">
+                                        Upload the HTML analysis report
+                                      </p>
+                                    </div>
+                                    <div>
+                                      <Label htmlFor="vtk-file">VTK Simulation Results File (Optional)</Label>
+                                      <Input
+                                        id="vtk-file"
+                                        type="file"
+                                        accept=".vtp"
+                                        onChange={(e) => setVtkFile(e.target.files?.[0] || null)}
+                                        className="mt-1"
+                                      />
+                                      <p className="text-xs text-gray-500 mt-1">
+                                        Currently supports .vtp (VTK XML PolyData) files for 3D visualization
+                                      </p>
                                     </div>
                                     <div className="flex justify-end space-x-2">
-                                      <Button variant="outline" onClick={() => setUploadDialog({ open: false })}>
+                                      <Button variant="outline" onClick={() => {
+                                        setUploadDialog({ open: false });
+                                        setReportFile(null);
+                                        setVtkFile(null);
+                                      }}>
                                         Cancel
                                       </Button>
-                                      <Button onClick={() => handleReportUpload(job.id)}>
-                                        Upload Report
+                                      <Button onClick={() => handleFilesUpload(job.id)}>
+                                        Upload Files
                                       </Button>
                                     </div>
                                   </div>
@@ -419,6 +535,46 @@ export default function ProjectDetail() {
                     </TableBody>
                   </Table>
                 )}
+              </CardContent>
+            </Card>
+
+            {/* 3D Viewer Section */}
+            <Card>
+              <CardHeader>
+                <CardTitle>3D Simulation Results Viewer</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <VtkViewer 
+                  vtkFilePath={selectedVtkFile || undefined}
+                  className="w-full"
+                />
+                <div className="mt-4">
+                  <Label htmlFor="vtk-file-select">Select VTK File to View</Label>
+                  <Select value={selectedVtkFile || ""} onValueChange={setSelectedVtkFile}>
+                    <SelectTrigger className="mt-1">
+                      <SelectValue placeholder="Choose a VTK file to visualize" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {vtkFiles.length === 0 ? (
+                        <SelectItem value="no-files" disabled>
+                          No VTK files uploaded yet
+                        </SelectItem>
+                      ) : (
+                        vtkFiles.map((file) => (
+                          <SelectItem key={file.id} value={file.path}>
+                            {file.jobName} - {file.filename}
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {vtkFiles.length > 0 
+                      ? `Found ${vtkFiles.length} VTK file(s) uploaded` 
+                      : "Upload VTK files using the upload buttons in the table above to see them here."
+                    }
+                  </p>
+                </div>
               </CardContent>
             </Card>
           </div>

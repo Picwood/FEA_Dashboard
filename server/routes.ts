@@ -43,6 +43,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         cb(new Error("Only HTML files are allowed for reports"));
         return;
       }
+      // For VTK files, currently only support .vtp format
+      if (req.body.label === "vtk" && !file.originalname.match(/\.vtp$/i)) {
+        cb(new Error("Only VTK PolyData files (.vtp) are currently supported for 3D models"));
+        return;
+      }
       cb(null, true);
     }
   });
@@ -283,6 +288,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         contentType = "application/pdf";
       } else if (ext === ".txt") {
         contentType = "text/plain";
+      } else if (ext === ".vtk" || ext === ".vti" || ext === ".vtp" || ext === ".vtu") {
+        contentType = "application/octet-stream";
       }
       
       res.setHeader('Content-Type', contentType);
@@ -315,6 +322,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(job);
     } catch (error) {
       res.status(500).json({ message: "Failed to update analysis results" });
+    }
+  });
+
+  // Test route to serve local VTK files (for development)
+  app.get("/api/test-vtk/:filename", requireAuth, async (req, res) => {
+    try {
+      const filename = req.params.filename;
+      const testFilePath = path.join("C:", "Users", "PC", "Downloads", filename);
+      
+      // Check if file exists
+      if (!fs.existsSync(testFilePath)) {
+        return res.status(404).json({ message: "Test file not found" });
+      }
+      
+      // Get file stats for proper headers
+      const stats = fs.statSync(testFilePath);
+      
+      res.setHeader('Content-Type', 'application/octet-stream');
+      res.setHeader('Content-Length', stats.size);
+      
+      // Stream the file
+      const fileStream = fs.createReadStream(testFilePath);
+      fileStream.pipe(res);
+      
+    } catch (error) {
+      console.error("Test file serving error:", error);
+      res.status(500).json({ message: "Failed to serve test file" });
     }
   });
 
