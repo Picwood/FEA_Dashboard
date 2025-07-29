@@ -53,7 +53,7 @@ pip install trame>=3.2.0 trame-vuetify>=2.4.0 trame-vtk>=2.8.0 vtk>=9.3.0 numpy>
 
 #### C. VTK Dependencies Missing
 ```bash
-# Install system dependencies for VTK
+# Install essential system dependencies for VTK
 sudo apt install -y \
     build-essential \
     cmake \
@@ -70,22 +70,21 @@ sudo apt install -y \
     libxcomposite-dev \
     libxdamage-dev \
     libxss-dev \
-    libxrandr-dev \
     libasound2-dev \
     libpulse-dev \
     libdbus-1-dev \
     libudev-dev \
-    libevdev-dev \
-    libmtdev-dev \
-    libts-dev \
+    libxcb1-dev \
     libxcb-xinerama0-dev \
-    libxcb-icccm-dev \
     libxcb-image0-dev \
     libxcb-keysyms1-dev \
     libxcb-randr0-dev \
     libxcb-render-util0-dev \
     libxcb-xfixes0-dev \
     libxcb-shape0-dev
+
+# Try additional packages (some may not be available on Raspberry Pi OS)
+sudo apt install -y libevdev-dev libmtdev-dev libts-dev || echo "Some packages not available, continuing..."
 ```
 
 #### D. Test Trame Viewer Manually

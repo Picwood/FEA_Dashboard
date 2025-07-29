@@ -27,6 +27,9 @@ echo "pip3 version: $(pip3 --version)"
 # Install system dependencies for VTK
 echo "📦 Installing system dependencies for VTK..."
 sudo apt update
+
+# Install essential packages (these should be available on Raspberry Pi OS)
+echo "Installing essential build dependencies..."
 sudo apt install -y \
     build-essential \
     cmake \
@@ -43,22 +46,27 @@ sudo apt install -y \
     libxcomposite-dev \
     libxdamage-dev \
     libxss-dev \
-    libxrandr-dev \
     libasound2-dev \
     libpulse-dev \
     libdbus-1-dev \
-    libudev-dev \
-    libevdev-dev \
-    libmtdev-dev \
-    libts-dev \
+    libudev-dev
+
+# Try to install additional XCB packages (some may not be available)
+echo "Installing XCB dependencies (some may not be available)..."
+sudo apt install -y \
+    libxcb1-dev \
     libxcb-xinerama0-dev \
-    libxcb-icccm-dev \
     libxcb-image0-dev \
     libxcb-keysyms1-dev \
     libxcb-randr0-dev \
     libxcb-render-util0-dev \
     libxcb-xfixes0-dev \
-    libxcb-shape0-dev
+    libxcb-shape0-dev \
+    libevdev-dev \
+    libmtdev-dev \
+    libts-dev || echo "⚠️  Some XCB packages not available, continuing..."
+
+echo "✅ System dependencies installation completed"
 
 # Create virtual environment for the application
 APP_DIR="/opt/fea-dashboard"
