@@ -8,6 +8,7 @@ import { storage } from "./storage";
 import { authenticateUser, requireAuth } from "./auth";
 import { insertJobSchema, insertProjectSchema } from "@shared/schema";
 import { initializeDatabase } from "./db";
+import { pythonTrameService } from "./python-service";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Initialize database
@@ -43,9 +44,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         cb(new Error("Only HTML files are allowed for reports"));
         return;
       }
-      // For VTK files, currently only support .vtp format
-      if (req.body.label === "vtk" && !file.originalname.match(/\.vtp$/i)) {
-        cb(new Error("Only VTK PolyData files (.vtp) are currently supported for 3D models"));
+      // For VTK files, support both .vtk and .vtp formats
+      if (req.body.label === "vtk" && !file.originalname.match(/\.(vtk|vtp)$/i)) {
+        cb(new Error("Only VTK files (.vtk, .vtp) are supported for 3D models"));
+        return;
+      }
+      // For FEA files, allow text files
+      if ((req.body.label === "nodes" || req.body.label === "elements" || req.body.label === "field") 
+          && file.mimetype !== "text/plain" && !file.originalname.match(/\.txt$/i)) {
+        cb(new Error("Only text files (.txt) are allowed for FEA data"));
         return;
       }
       cb(null, true);
@@ -349,6 +356,101 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Test file serving error:", error);
       res.status(500).json({ message: "Failed to serve test file" });
+    }
+  });
+
+  // Python Trame viewer routes
+  app.post("/api/jobs/:id/start-viewer", requireAuth, async (req, res) => {
+    try {
+      const jobId = req.params.id;
+      const result = await pythonTrameService.startViewer(jobId);
+      
+      if (result) {
+        res.json({
+          success: true,
+          port: result.port,
+          url: result.url,
+          message: `Trame viewer started for job ${jobId}`
+        });
+      } else {
+        res.status(500).json({
+          success: false,
+          message: `Failed to start Trame viewer for job ${jobId}`
+        });
+      }
+    } catch (error) {
+      console.error("Error starting Trame viewer:", error);
+      res.status(500).json({
+        success: false,
+        message: "Internal server error"
+      });
+    }
+  });
+
+  app.delete("/api/jobs/:id/stop-viewer", requireAuth, async (req, res) => {
+    try {
+      const jobId = req.params.id;
+      const success = await pythonTrameService.stopViewer(jobId);
+      
+      if (success) {
+        res.json({
+          success: true,
+          message: `Trame viewer stopped for job ${jobId}`
+        });
+      } else {
+        res.status(404).json({
+          success: false,
+          message: `No active Trame viewer found for job ${jobId}`
+        });
+      }
+    } catch (error) {
+      console.error("Error stopping Trame viewer:", error);
+      res.status(500).json({
+        success: false,
+        message: "Internal server error"
+      });
+    }
+  });
+
+  app.get("/api/jobs/:id/viewer-status", requireAuth, async (req, res) => {
+    try {
+      const jobId = req.params.id;
+      const status = await pythonTrameService.getViewerStatus(jobId);
+      
+      if (status) {
+        res.json({
+          success: true,
+          ...status
+        });
+      } else {
+        res.json({
+          success: false,
+          status: 'not-running',
+          message: `No Trame viewer found for job ${jobId}`
+        });
+      }
+    } catch (error) {
+      console.error("Error getting Trame viewer status:", error);
+      res.status(500).json({
+        success: false,
+        message: "Internal server error"
+      });
+    }
+  });
+
+  app.get("/api/trame/active-viewers", requireAuth, async (req, res) => {
+    try {
+      const viewers = pythonTrameService.listActiveViewers();
+      res.json({
+        success: true,
+        viewers
+      });
+    } catch (error) {
+      console.error("Error listing active Trame viewers:", error);
+      res.status(500).json({
+        success: false,
+        message: "Internal server error"
+      });
     }
   });
 

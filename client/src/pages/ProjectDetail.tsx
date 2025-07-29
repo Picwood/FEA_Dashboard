@@ -8,11 +8,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Upload, ExternalLink, Calendar, User, FileText, TrendingUp, CheckCircle, AlertCircle, XCircle, Clock, Edit } from "lucide-react";
+import { Upload, ExternalLink, Calendar, User, FileText, TrendingUp, CheckCircle, AlertCircle, XCircle, Clock, Edit, Eye } from "lucide-react";
 import { useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import Sidebar from "../components/Sidebar";
-import VtkViewer from "../components/VtkViewer";
+import { TrameViewer } from "../components/TrameViewer";
 import { useJobs } from "../hooks/useJobs";
 import { useProjects } from "../hooks/useProjects";
 import { useToast } from "@/hooks/use-toast";
@@ -58,8 +58,7 @@ export default function ProjectDetail() {
   const [editDialog, setEditDialog] = useState<{ open: boolean; jobId?: number; confidence?: number; conclusion?: string }>({ open: false });
   const [editConfidence, setEditConfidence] = useState<number>(0);
   const [editConclusion, setEditConclusion] = useState<string>("");
-  const [selectedVtkFile, setSelectedVtkFile] = useState<string | null>(null);
-  const [vtkFiles, setVtkFiles] = useState<any[]>([]);
+  const [trameViewerDialog, setTrameViewerDialog] = useState<{ open: boolean; jobId?: number }>({ open: false });
 
   // Find the project
   const project = projects.find(p => p.id === parseInt(projectId || "0"));
@@ -69,47 +68,6 @@ export default function ProjectDetail() {
     jobs.filter(job => job.projectId === parseInt(projectId || "0")),
     [jobs, projectId]
   );
-
-  // Fetch VTK files for the current project
-  useEffect(() => {
-    const fetchVtkFiles = async () => {
-      if (!projectJobs.length) {
-        setVtkFiles([]);
-        return;
-      }
-      
-      try {
-        const allVtkFiles = [];
-        
-        for (const job of projectJobs) {
-          const response = await fetch(`/api/jobs/${job.id}/files`, {
-            credentials: "include",
-          });
-          
-          if (response.ok) {
-            const files = await response.json();
-            const jobVtkFiles = files.filter((file: any) => file.label === "vtk");
-            
-            // Add job info to each file for display
-            const filesWithJobInfo = jobVtkFiles.map((file: any) => ({
-              ...file,
-              jobName: job.simulationName,
-              jobId: job.id
-            }));
-            
-            allVtkFiles.push(...filesWithJobInfo);
-          }
-        }
-        
-        setVtkFiles(allVtkFiles);
-      } catch (error) {
-        console.error("Error fetching VTK files:", error);
-        setVtkFiles([]);
-      }
-    };
-
-    fetchVtkFiles();
-  }, [projectJobs.length]); // Only depend on the length to avoid infinite loops
 
   if (!project) {
     return (
@@ -273,21 +231,6 @@ export default function ProjectDetail() {
     if (!conclusion) return <FileText className="h-4 w-4" />;
     const Icon = conclusionIcons[conclusion as keyof typeof conclusionIcons] || FileText;
     return <Icon className="h-4 w-4" />;
-  };
-
-  const getVtkFiles = async (jobId: number) => {
-    try {
-      const response = await fetch(`/api/jobs/${jobId}/files`, {
-        credentials: "include",
-      });
-      if (response.ok) {
-        const files = await response.json();
-        return files.filter((file: any) => file.label === "vtk");
-      }
-    } catch (error) {
-      console.error("Error fetching VTK files:", error);
-    }
-    return [];
   };
 
   const getConfidenceColor = (confidence?: number) => {
@@ -494,12 +437,12 @@ export default function ProjectDetail() {
                                       <Input
                                         id="vtk-file"
                                         type="file"
-                                        accept=".vtp"
+                                        accept=".vtk,.vtp"
                                         onChange={(e) => setVtkFile(e.target.files?.[0] || null)}
                                         className="mt-1"
                                       />
                                       <p className="text-xs text-gray-500 mt-1">
-                                        Currently supports .vtp (VTK XML PolyData) files for 3D visualization
+                                        Supports .vtk (legacy VTK) and .vtp (VTK XML PolyData) files for 3D visualization
                                       </p>
                                     </div>
                                     <div className="flex justify-end space-x-2">
@@ -520,61 +463,32 @@ export default function ProjectDetail() {
                             </div>
                           </TableCell>
                           <TableCell>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleEditAnalysis(job)}
-                              className="flex items-center space-x-1"
-                            >
-                              <Edit className="h-3 w-3" />
-                              <span>Edit</span>
-                            </Button>
+                            <div className="flex items-center space-x-2">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => setTrameViewerDialog({ open: true, jobId: job.id })}
+                                className="flex items-center space-x-1"
+                              >
+                                <Eye className="h-3 w-3" />
+                                <span>3D View</span>
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleEditAnalysis(job)}
+                                className="flex items-center space-x-1"
+                              >
+                                <Edit className="h-3 w-3" />
+                                <span>Edit</span>
+                              </Button>
+                            </div>
                           </TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
                   </Table>
                 )}
-              </CardContent>
-            </Card>
-
-            {/* 3D Viewer Section */}
-            <Card>
-              <CardHeader>
-                <CardTitle>3D Simulation Results Viewer</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <VtkViewer 
-                  vtkFilePath={selectedVtkFile || undefined}
-                  className="w-full"
-                />
-                <div className="mt-4">
-                  <Label htmlFor="vtk-file-select">Select VTK File to View</Label>
-                  <Select value={selectedVtkFile || ""} onValueChange={setSelectedVtkFile}>
-                    <SelectTrigger className="mt-1">
-                      <SelectValue placeholder="Choose a VTK file to visualize" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {vtkFiles.length === 0 ? (
-                        <SelectItem value="no-files" disabled>
-                          No VTK files uploaded yet
-                        </SelectItem>
-                      ) : (
-                        vtkFiles.map((file) => (
-                          <SelectItem key={file.id} value={file.path}>
-                            {file.jobName} - {file.filename}
-                          </SelectItem>
-                        ))
-                      )}
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-gray-500 mt-1">
-                    {vtkFiles.length > 0 
-                      ? `Found ${vtkFiles.length} VTK file(s) uploaded` 
-                      : "Upload VTK files using the upload buttons in the table above to see them here."
-                    }
-                  </p>
-                </div>
               </CardContent>
             </Card>
           </div>
@@ -622,6 +536,26 @@ export default function ProjectDetail() {
                 Save Changes
               </Button>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Trame Viewer Dialog */}
+      <Dialog 
+        open={trameViewerDialog.open} 
+        onOpenChange={(open) => setTrameViewerDialog({ open })}
+      >
+        <DialogContent className="max-w-6xl max-h-[90vh]">
+          <DialogHeader>
+            <DialogTitle>FEA 3D Viewer - Job {trameViewerDialog.jobId}</DialogTitle>
+          </DialogHeader>
+          <div className="h-[70vh]">
+            {trameViewerDialog.jobId && (
+              <TrameViewer 
+                jobId={trameViewerDialog.jobId.toString()} 
+                className="h-full"
+              />
+            )}
           </div>
         </DialogContent>
       </Dialog>

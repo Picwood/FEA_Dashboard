@@ -54,7 +54,7 @@ export default function JobDetail() {
                 <ArrowLeft className="h-4 w-4" />
               </Button>
               <div>
-                <h2 className="text-xl font-semibold text-gray-900">{job.project}</h2>
+                <h2 className="text-xl font-semibold text-gray-900">{job.simulationName}</h2>
                 <p className="text-sm text-gray-500">FEA-{job.id.toString().padStart(3, "0")}</p>
               </div>
             </div>

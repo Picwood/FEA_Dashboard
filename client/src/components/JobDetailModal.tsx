@@ -9,6 +9,7 @@ import { Upload, Download, Trash2, Copy } from "lucide-react";
 import { useJob, useJobFiles, useUploadFiles, useDeleteJob } from "../hooks/useJobs";
 import { api } from "../lib/api";
 import { useToast } from "@/hooks/use-toast";
+
 import type { Job } from "@shared/schema";
 
 interface JobDetailModalProps {
@@ -112,7 +113,7 @@ export default function JobDetailModal({ jobId, open, onOpenChange }: JobDetailM
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center justify-between">
-            <span>Job Details - {job.project}</span>
+            <span>Job Details - {job.simulationName}</span>
             <Badge variant="outline">FEA-{job.id.toString().padStart(3, "0")}</Badge>
           </DialogTitle>
         </DialogHeader>
@@ -132,8 +133,8 @@ export default function JobDetailModal({ jobId, open, onOpenChange }: JobDetailM
               <CardContent>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="text-sm text-gray-600">Project</label>
-                    <p className="font-medium">{job.project}</p>
+                    <label className="text-sm text-gray-600">Simulation Name</label>
+                    <p className="font-medium">{job.simulationName}</p>
                   </div>
                   <div>
                     <label className="text-sm text-gray-600">Bench Type</label>
@@ -208,6 +209,10 @@ export default function JobDetailModal({ jobId, open, onOpenChange }: JobDetailM
                       <option value="mesh">Mesh File</option>
                       <option value="inp_file">Input File (.inp)</option>
                       <option value="result_log">Result Log</option>
+                      <option value="nodes">FEA Nodes (.txt)</option>
+                      <option value="elements">FEA Elements (.txt)</option>
+                      <option value="field">FEA Field Data (.txt)</option>
+                      <option value="vtk">VTK File (.vtk/.vtp)</option>
                       <option value="general">General</option>
                     </select>
                     
