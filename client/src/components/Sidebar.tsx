@@ -4,12 +4,13 @@ import { cn } from "@/lib/utils";
 import { 
   ChartLine, 
   Plus, 
-  Box, 
   FolderOpen, 
   Settings, 
   Cog, 
   User, 
-  LogOut 
+  LogOut,
+  Database,
+  HardDrive
 } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
@@ -18,8 +19,8 @@ const navigation = [
   { name: "Dashboard", href: "/", icon: ChartLine },
   { name: "Projects", href: "/projects", icon: FolderOpen },
   { name: "New Request", href: "/new", icon: Plus },
-  { name: "3D Viewer", href: "/viewer", icon: Box },
-  { name: "File Manager", href: "/files", icon: FolderOpen },
+  { name: "File Explorer", href: "/files", icon: HardDrive },
+  { name: "Knowledge Base", href: "/obsidian", icon: Database },
 ];
 
 export default function Sidebar() {

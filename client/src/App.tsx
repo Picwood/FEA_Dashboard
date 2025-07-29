@@ -14,6 +14,8 @@ import NewRequest from "./pages/NewRequest";
 import JobDetail from "./pages/JobDetail";
 import Login from "./pages/Login";
 import NotFound from "./pages/not-found";
+import FileExplorer from "./pages/FileExplorer";
+import ObsidianKnowledgeBase from "./pages/ObsidianKnowledgeBase";
 
 function AuthChecker({ children }: { children: React.ReactNode }) {
   const [location, setLocation] = useLocation();
@@ -56,6 +58,8 @@ function Router() {
       <Route path="/project/:projectId" component={ProjectDetail} />
       <Route path="/new" component={NewRequest} />
       <Route path="/job/:id" component={JobDetail} />
+      <Route path="/files" component={FileExplorer} />
+      <Route path="/obsidian" component={ObsidianKnowledgeBase} />
       <Route component={NotFound} />
     </Switch>
   );

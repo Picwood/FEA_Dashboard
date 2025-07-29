@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Bell, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import { useLocation } from "wouter";
 import Sidebar from "../components/Sidebar";
 import StatsCards from "../components/StatsCards";
 import JobsTable from "../components/JobsTable";
 import GanttChart from "../components/GanttChart";
 import JobDetailModal from "../components/JobDetailModal";
+import { NotificationDropdown } from "../components/NotificationDropdown";
 
 export default function Dashboard() {
   const [, setLocation] = useLocation();
@@ -25,10 +26,7 @@ export default function Dashboard() {
               <p className="text-sm text-gray-500 mt-1">Monitor and manage FEA simulation jobs</p>
             </div>
             <div className="flex items-center space-x-3">
-              <Button variant="ghost" size="sm" className="relative">
-                <Bell className="h-5 w-5" />
-                <span className="absolute top-0 right-0 w-2 h-2 bg-red-500 rounded-full"></span>
-              </Button>
+              <NotificationDropdown />
               
               <Button onClick={() => setLocation("/new")} className="bg-primary hover:bg-primary/90">
                 <Plus className="mr-2 h-4 w-4" />

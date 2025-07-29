@@ -454,6 +454,126 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // File Explorer Routes
+  app.get("/api/files/browse", requireAuth, async (req, res) => {
+    try {
+      const requestPath = req.query.path as string || "";
+      const basePath = "/mnt/nvme";
+      
+      // Security: Ensure path is within the allowed directory
+      const safePath = path.resolve(basePath, requestPath);
+      if (!safePath.startsWith(basePath)) {
+        return res.status(403).json({
+          success: false,
+          message: "Access denied: Path outside allowed directory"
+        });
+      }
+
+      // Check if path exists and is accessible
+      if (!fs.existsSync(safePath)) {
+        return res.status(404).json({
+          success: false,
+          message: "Path not found"
+        });
+      }
+
+      const stat = fs.statSync(safePath);
+      
+      if (stat.isDirectory()) {
+        // List directory contents
+        const items = fs.readdirSync(safePath).map(name => {
+          const itemPath = path.join(safePath, name);
+          const itemStat = fs.statSync(itemPath);
+          
+          return {
+            name,
+            path: path.relative(basePath, itemPath),
+            type: itemStat.isDirectory() ? "directory" : "file",
+            size: itemStat.isFile() ? itemStat.size : null,
+            modified: itemStat.mtime.toISOString(),
+            permissions: (itemStat.mode & parseInt('777', 8)).toString(8)
+          };
+        }).sort((a, b) => {
+          // Directories first, then files, both alphabetically
+          if (a.type !== b.type) {
+            return a.type === "directory" ? -1 : 1;
+          }
+          return a.name.localeCompare(b.name);
+        });
+
+        res.json({
+          success: true,
+          type: "directory",
+          path: path.relative(basePath, safePath),
+          items
+        });
+      } else {
+        // File info
+        res.json({
+          success: true,
+          type: "file",
+          path: path.relative(basePath, safePath),
+          size: stat.size,
+          modified: stat.mtime.toISOString(),
+          permissions: (stat.mode & parseInt('777', 8)).toString(8)
+        });
+      }
+    } catch (error) {
+      console.error("Error browsing files:", error);
+      res.status(500).json({
+        success: false,
+        message: "Failed to browse files"
+      });
+    }
+  });
+
+  app.get("/api/files/download", requireAuth, async (req, res) => {
+    try {
+      const requestPath = req.query.path as string;
+      if (!requestPath) {
+        return res.status(400).json({
+          success: false,
+          message: "Path parameter required"
+        });
+      }
+
+      const basePath = "/mnt/nvme";
+      const safePath = path.resolve(basePath, requestPath);
+      
+      // Security check
+      if (!safePath.startsWith(basePath)) {
+        return res.status(403).json({
+          success: false,
+          message: "Access denied"
+        });
+      }
+
+      if (!fs.existsSync(safePath)) {
+        return res.status(404).json({
+          success: false,
+          message: "File not found"
+        });
+      }
+
+      const stat = fs.statSync(safePath);
+      if (!stat.isFile()) {
+        return res.status(400).json({
+          success: false,
+          message: "Path is not a file"
+        });
+      }
+
+      // Send file
+      res.download(safePath);
+    } catch (error) {
+      console.error("Error downloading file:", error);
+      res.status(500).json({
+        success: false,
+        message: "Failed to download file"
+      });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
