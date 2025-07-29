@@ -10,6 +10,7 @@ This guide helps resolve common issues when deploying the FEA Dashboard on Raspb
 - Clicking "Start Viewer" returns 500 error
 - No 3D visualization appears
 - Console shows "Failed to start Trame viewer"
+- VTK rendering errors in logs
 
 **Diagnosis:**
 ```bash
@@ -53,7 +54,7 @@ pip install trame>=3.2.0 trame-vuetify>=2.4.0 trame-vtk>=2.8.0 vtk>=9.3.0 numpy>
 
 #### C. VTK Dependencies Missing
 ```bash
-# Install essential system dependencies for VTK
+# Install system dependencies for VTK
 sudo apt install -y \
     build-essential \
     cmake \
@@ -70,21 +71,22 @@ sudo apt install -y \
     libxcomposite-dev \
     libxdamage-dev \
     libxss-dev \
+    libxrandr-dev \
     libasound2-dev \
     libpulse-dev \
     libdbus-1-dev \
     libudev-dev \
-    libxcb1-dev \
+    libevdev-dev \
+    libmtdev-dev \
+    libts-dev \
     libxcb-xinerama0-dev \
+    libxcb-icccm-dev \
     libxcb-image0-dev \
     libxcb-keysyms1-dev \
     libxcb-randr0-dev \
     libxcb-render-util0-dev \
     libxcb-xfixes0-dev \
     libxcb-shape0-dev
-
-# Try additional packages (some may not be available on Raspberry Pi OS)
-sudo apt install -y libevdev-dev libmtdev-dev libts-dev || echo "Some packages not available, continuing..."
 ```
 
 #### D. Test Trame Viewer Manually
@@ -96,6 +98,18 @@ sudo -u feadash venv/bin/python python/fea_viewer.py --port 8080
 # If successful, you should see:
 # "Starting FEA Viewer on port 8080"
 # "Server started"
+# "🐍 Detected Raspberry Pi - applying Pi-specific optimizations" (if on Pi)
+```
+
+#### E. Test VTK Configuration
+```bash
+# Test VTK configuration specifically
+cd /opt/fea-dashboard
+sudo -u feadash venv/bin/python python/raspberry_pi_config.py
+
+# This should show:
+# "🐍 Detected Raspberry Pi - applying Pi-specific optimizations"
+# "✅ VTK installation test successful!"
 ```
 
 ### 2. Port Already in Use
@@ -327,10 +341,30 @@ If you're still experiencing issues:
 - [ ] Firewall allows necessary ports
 - [ ] Sufficient memory/swap space available
 
+## 🍓 Raspberry Pi Specific Optimizations
+
+### Performance Settings
+The application automatically detects Raspberry Pi and applies optimizations:
+- **Render Window Size**: 1024x768 (reduced from 1280x960)
+- **Interactive Ratio**: 0.5 (reduced from 1.0 for better performance)
+- **Interactive Quality**: 60 (reduced from 80 for faster rendering)
+- **Multisampling**: Disabled (0 samples instead of 4)
+- **Anti-aliasing**: Disabled (0 frames instead of 1)
+- **Max Threads**: Limited to 4 (instead of 8)
+
+### Memory Management
+- VTK memory usage is limited to 512MB on Raspberry Pi
+- Thread count is reduced to prevent memory issues
+- Render quality is automatically reduced for better performance
+
+### Hardware Detection
+The application automatically detects Raspberry Pi by checking `/proc/cpuinfo` and applies appropriate settings.
+
 ## 📝 Notes
 
 - The Trame viewer requires significant system resources
 - Raspberry Pi 4 (4GB+) is recommended for optimal performance
 - Python packages can take 10-30 minutes to install on first run
 - VTK compilation may fail on older Raspberry Pi models due to memory constraints
-- Always backup your database before making changes 
+- Always backup your database before making changes
+- Raspberry Pi specific optimizations are automatically applied 

@@ -24,12 +24,9 @@ echo "✅ Python3 and pip3 are available"
 echo "Python3 version: $(python3 --version)"
 echo "pip3 version: $(pip3 --version)"
 
-# Install system dependencies for VTK
+# Install system dependencies for VTK (Raspberry Pi optimized)
 echo "📦 Installing system dependencies for VTK..."
 sudo apt update
-
-# Install essential packages (these should be available on Raspberry Pi OS)
-echo "Installing essential build dependencies..."
 sudo apt install -y \
     build-essential \
     cmake \
@@ -46,27 +43,25 @@ sudo apt install -y \
     libxcomposite-dev \
     libxdamage-dev \
     libxss-dev \
+    libxrandr-dev \
     libasound2-dev \
     libpulse-dev \
     libdbus-1-dev \
-    libudev-dev
-
-# Try to install additional XCB packages (some may not be available)
-echo "Installing XCB dependencies (some may not be available)..."
-sudo apt install -y \
-    libxcb1-dev \
+    libudev-dev \
+    libevdev-dev \
+    libmtdev-dev \
+    libts-dev \
     libxcb-xinerama0-dev \
+    libxcb-icccm-dev \
     libxcb-image0-dev \
     libxcb-keysyms1-dev \
     libxcb-randr0-dev \
     libxcb-render-util0-dev \
     libxcb-xfixes0-dev \
     libxcb-shape0-dev \
-    libevdev-dev \
-    libmtdev-dev \
-    libts-dev || echo "⚠️  Some XCB packages not available, continuing..."
-
-echo "✅ System dependencies installation completed"
+    libosmesa6-dev \
+    libgles2-mesa-dev \
+    libegl1-mesa-dev
 
 # Create virtual environment for the application
 APP_DIR="/opt/fea-dashboard"
@@ -97,6 +92,54 @@ fi
 # Test Python installation
 echo "🧪 Testing Python installation..."
 sudo -u feadash bash -c "source $VENV_DIR/bin/activate && python -c \"import vtk; import trame; import numpy; import pandas; print('✅ All Python packages installed successfully!')\""
+
+# Configure VTK for Raspberry Pi
+echo "🔧 Configuring VTK for Raspberry Pi..."
+sudo -u feadash bash -c "source $VENV_DIR/bin/activate && python -c \"
+import vtk
+import os
+
+# Set VTK environment variables for Raspberry Pi
+os.environ['VTK_RENDERER'] = 'OpenGL2'
+os.environ['VTK_OPENGL_HAS_OSMESA'] = '1'
+os.environ['VTK_USE_OSMESA'] = '1'
+os.environ['VTK_SILENCE_GET_VOID_POINTER_WARNINGS'] = '1'
+os.environ['VTK_SILENCE_DEPRECATION_WARNINGS'] = '1'
+
+# Test VTK rendering
+renderer = vtk.vtkRenderer()
+render_window = vtk.vtkRenderWindow()
+render_window.AddRenderer(renderer)
+render_window.SetOffScreenRendering(True)
+render_window.SetSize(100, 100)
+
+# Create a simple test
+points = vtk.vtkPoints()
+points.InsertNextPoint(0, 0, 0)
+points.InsertNextPoint(1, 0, 0)
+points.InsertNextPoint(0, 1, 0)
+
+lines = vtk.vtkCellArray()
+line = vtk.vtkLine()
+line.GetPointIds().SetId(0, 0)
+line.GetPointIds().SetId(1, 1)
+lines.InsertNextCell(line)
+
+polydata = vtk.vtkPolyData()
+polydata.SetPoints(points)
+polydata.SetLines(lines)
+
+mapper = vtk.vtkPolyDataMapper()
+mapper.SetInputData(polydata)
+
+actor = vtk.vtkActor()
+actor.SetMapper(mapper)
+renderer.AddActor(actor)
+
+# Test rendering
+render_window.Render()
+print('✅ VTK rendering test successful on Raspberry Pi!')
+\""
 
 # Create a symlink for easier access
 echo "🔗 Creating symlink for Python executable..."
