@@ -41,8 +41,36 @@ class PythonTrameService {
       return null;
     }
 
+    // Try to find Python executable
+    let pythonExecutable = 'python';
+    const possiblePythonPaths = [
+      'python',
+      'python3',
+      path.join(process.cwd(), 'python'), // Virtual environment symlink
+      path.join(process.cwd(), 'venv', 'bin', 'python'), // Virtual environment
+      '/usr/bin/python3',
+      '/usr/local/bin/python3'
+    ];
+
+    for (const pythonPath of possiblePythonPaths) {
+      try {
+        const { execSync } = require('child_process');
+        execSync(`${pythonPath} --version`, { stdio: 'ignore' });
+        pythonExecutable = pythonPath;
+        console.log(`Using Python executable: ${pythonExecutable}`);
+        break;
+      } catch (error) {
+        // Continue to next option
+      }
+    }
+
+    if (pythonExecutable === 'python') {
+      console.error('No Python executable found. Please install Python and required dependencies.');
+      return null;
+    }
+
     try {
-      const childProcess = spawn('python', [pythonPath, '--job-id', jobId, '--port', port.toString()], {
+      const childProcess = spawn(pythonExecutable, [pythonPath, '--job-id', jobId, '--port', port.toString()], {
         cwd: process.cwd(),
         stdio: ['pipe', 'pipe', 'pipe']
       });
