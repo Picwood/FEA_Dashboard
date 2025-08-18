@@ -11,25 +11,10 @@ import json
 import argparse
 from pathlib import Path
 
-# Import Raspberry Pi configuration
-try:
-    from raspberry_pi_config import configure_for_raspberry_pi, get_raspberry_pi_performance_settings, configure_trame_server
-    configure_for_raspberry_pi()
-    pi_settings = get_raspberry_pi_performance_settings()
-except ImportError:
-    # Fallback configuration if Raspberry Pi config is not available
-    os.environ['VTK_SILENCE_GET_VOID_POINTER_WARNINGS'] = '1'
-    os.environ['VTK_SILENCE_DEPRECATION_WARNINGS'] = '1'
-    os.environ['VTK_USE_X'] = '0'
-    os.environ['DISPLAY'] = ''
-    os.environ['VTK_RENDERER'] = 'OpenGL2'
-    pi_settings = {
-        'render_window_size': (1024, 768),
-        'interactive_ratio': 0.5,
-        'interactive_quality': 60,
-        'multisamples': 0,
-        'antialiasing': 0
-    }
+# Configure VTK for headless operation on Windows
+os.environ['VTK_SILENCE_GET_VOID_POINTER_WARNINGS'] = '1'
+os.environ['VTK_USE_X'] = '0'  # Disable X11 on Unix-like systems
+os.environ['DISPLAY'] = ''     # Ensure no display is used
 
 import numpy as np
 import pandas as pd
@@ -61,10 +46,7 @@ class FEAViewer:
     def __init__(self, job_id=None, port=8080):
         self.job_id = job_id
         self.port = port
-        
-        # Configure Trame server
-        self.server = get_server(client_type="vue2", host="0.0.0.0", port=port)
-        
+        self.server = get_server(client_type="vue2")
         self.state, self.ctrl = self.server.state, self.server.controller
         
         # VTK Pipeline setup
@@ -107,22 +89,12 @@ class FEAViewer:
         self.renderer = vtkRenderer()
         self.renderer.SetBackground(0.1, 0.1, 0.1)  # Dark background
         
-        # Render window setup for headless/server mode (Raspberry Pi optimized)
+        # Render window setup for headless/server mode
         self.renderWindow = vtkRenderWindow()
         self.renderWindow.AddRenderer(self.renderer)
-        
-        # Configure for headless rendering on Raspberry Pi
+        # Configure for headless rendering
         self.renderWindow.SetOffScreenRendering(True)
         self.renderWindow.SetShowWindow(False)
-        
-        # Raspberry Pi specific render window settings
-        size = pi_settings['render_window_size']
-        self.renderWindow.SetSize(size[0], size[1])
-        self.renderWindow.SetMultiSamples(pi_settings['multisamples'])
-        
-        # SetAAFrames might not be available on all platforms (e.g., Windows)
-        if hasattr(self.renderWindow, 'SetAAFrames'):
-            self.renderWindow.SetAAFrames(pi_settings['antialiasing'])
         
         self.renderWindowInteractor = vtkRenderWindowInteractor()
         self.renderWindowInteractor.SetRenderWindow(self.renderWindow)
@@ -471,11 +443,10 @@ class FEAViewer:
                     click="$vuetify.breakpoint.smAndDown ? (drawer = false) : null"
                 ):
                     # Close drawer when clicking on 3D view (mobile/tablet)
-                    # VTK widget with Raspberry Pi optimizations
                     html_view = vtk_widgets.VtkRemoteView(
                         self.renderWindow, 
-                        interactive_ratio=(str(pi_settings['interactive_ratio']),),
-                        interactive_quality=(pi_settings['interactive_quality'],),
+                        interactive_ratio=("1",), 
+                        interactive_quality=(80,),
                         style="cursor: grab"
                     )
                     self.ctrl.view_update = html_view.update
@@ -925,8 +896,8 @@ class FEAViewer:
             except Exception as e:
                 print(f"Error loading job files: {e}")
         
-        # Start server with CLI arguments
-        self.server.start()
+        # Start server
+        self.server.start(port=self.port)
 
 def main():
     import signal
@@ -968,4 +939,4 @@ def main():
         sys.exit(1)
 
 if __name__ == "__main__":
-    main()
+    main() 

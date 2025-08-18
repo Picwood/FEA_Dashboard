@@ -31,7 +31,7 @@ sudo chown -R feadash:feadash $LOG_DIR
 sudo chmod -R 755 $APP_DIR
 sudo chmod -R 755 $LOG_DIR
 
-# Install Node.js dependencies
+# Install dependencies
 echo "Installing Node.js dependencies..."
 cd $APP_DIR
 sudo -u feadash npm install
@@ -39,10 +39,6 @@ sudo -u feadash npm install
 # Build the application
 echo "Building application..."
 sudo -u feadash npm run build
-
-# Install Python dependencies for Trame viewer
-echo "Installing Python dependencies..."
-sudo bash deploy/setup-python.sh
 
 # Create environment file
 echo "Creating environment configuration..."

@@ -36,7 +36,7 @@ npm --version
 ### 1.3 Install Additional Dependencies
 ```bash
 # Install build tools for native modules
-sudo apt install -y build-essential python3 python3-pip python3-venv sqlite3
+sudo apt install -y build-essential python3 sqlite3
 
 # Install PM2 for process management (optional but recommended)
 sudo npm install -g pm2
@@ -92,9 +92,6 @@ sudo bash deploy/raspberry-pi-setup.sh
 
 # Set up systemd service
 sudo bash deploy/setup-service.sh
-
-# Note: Python dependencies for Trame viewer are automatically installed during setup
-# If you encounter issues with the 3D viewer, see deploy/TROUBLESHOOTING.md
 
 # Configure firewall (optional but recommended)
 sudo bash deploy/setup-firewall.sh

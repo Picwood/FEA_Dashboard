@@ -41,75 +41,8 @@ class PythonTrameService {
       return null;
     }
 
-    // Try to find Python executable
-    let pythonExecutable = 'python';
-    const possiblePythonPaths = [
-      'python',
-      'python3',
-      path.join(process.cwd(), 'python'), // Virtual environment symlink
-      path.join(process.cwd(), 'venv', 'bin', 'python'), // Virtual environment (Unix)
-      path.join(process.cwd(), 'venv', 'Scripts', 'python.exe'), // Virtual environment (Windows)
-      '/usr/bin/python3',
-      '/usr/local/bin/python3',
-      'C:\\Python39\\python.exe', // Common Windows Python installation paths
-      'C:\\Python38\\python.exe',
-      'C:\\Python37\\python.exe'
-    ];
-
-    let foundPython = false;
-    
-    // First try to find Python in specific paths
-    for (const possiblePath of possiblePythonPaths) {
-      try {
-        // Skip paths that don't exist
-        if (possiblePath.startsWith('/') || possiblePath.startsWith('C:\\')) {
-          // These are absolute paths, check if they exist
-          if (!fs.existsSync(possiblePath)) {
-            continue;
-          }
-        }
-        
-        const { execSync } = require('child_process');
-        execSync(`${possiblePath} --version`, { stdio: 'ignore' });
-        pythonExecutable = possiblePath;
-        console.log(`Using Python executable: ${pythonExecutable}`);
-        foundPython = true;
-        break;
-      } catch (error) {
-        // Continue to next option
-      }
-    }
-
-    // If we didn't find Python in the specific paths, try the system Python
-    if (!foundPython) {
-      try {
-        const { execSync } = require('child_process');
-        execSync('python --version', { stdio: 'ignore' });
-        pythonExecutable = 'python';
-        console.log(`Using system Python executable: ${pythonExecutable}`);
-        foundPython = true;
-      } catch (error) {
-        try {
-          // Try python3 as well
-          const { execSync } = require('child_process');
-          execSync('python3 --version', { stdio: 'ignore' });
-          pythonExecutable = 'python3';
-          console.log(`Using system Python executable: ${pythonExecutable}`);
-          foundPython = true;
-        } catch (error) {
-          console.error('No Python executable found. Please install Python and required dependencies.');
-          return null;
-        }
-      }
-    }
-
-    if (!foundPython) {
-      console.error('No Python executable found. Please install Python and required dependencies.');
-      return null;
-    }
-
     try {
-      const childProcess = spawn(pythonExecutable, [pythonPath, '--job-id', jobId, '--port', port.toString()], {
+      const childProcess = spawn('python', [pythonPath, '--job-id', jobId, '--port', port.toString()], {
         cwd: process.cwd(),
         stdio: ['pipe', 'pipe', 'pipe']
       });
@@ -250,4 +183,4 @@ process.on('SIGTERM', async () => {
   console.log('Cleaning up Python Trame instances...');
   await pythonTrameService.cleanup();
   process.exit(0);
-});
+}); 
