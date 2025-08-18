@@ -93,25 +93,19 @@ def configure_trame_server(server, port):
                 is_raspberry_pi = True
     except:
         pass
-    
-    # Basic configuration
-    server.config.port = port
-    server.config.host = "0.0.0.0"  # Allow external connections
-    
+
     if is_raspberry_pi:
-        print("🔧 Configuring Trame server for Raspberry Pi")
+        print("ðŸ”§ Configuring Trame server for Raspberry Pi")
         # Raspberry Pi optimizations
-        server.config.threading = True
-        server.config.threading_mode = "threading"
-        server.config.max_connections = 10  # Limit connections for Pi
-        server.config.timeout = 30  # Shorter timeout
+        server.config.port = port
+        server.config.host = "0.0.0.0"
+        # Additional Pi-specific configurations can be added here if needed
     else:
-        print("🔧 Configuring Trame server for standard system")
+        print("ðŸ”§ Configuring Trame server for standard system")
         # Standard configuration
-        server.config.threading = True
-        server.config.threading_mode = "threading"
-        server.config.max_connections = 50
-        server.config.timeout = 60
+        server.config.port = port
+        server.config.host = "0.0.0.0"
+        # Additional standard configurations can be added here if needed
 
 def test_vtk_installation():
     """Test VTK installation and configuration"""
@@ -163,4 +157,4 @@ if __name__ == "__main__":
     configure_for_raspberry_pi()
     settings = get_raspberry_pi_performance_settings()
     print(f"Performance settings: {settings}")
-    test_vtk_installation() 
+    test_vtk_installation()

@@ -97,4 +97,21 @@ export const api = {
       return res.json();
     },
   },
+  
+  trame: {
+    startViewer: async (jobId: string) => {
+      const res = await apiRequest("POST", `/api/jobs/${jobId}/start-viewer`);
+      return res.json();
+    },
+    
+    stopViewer: async (jobId: string) => {
+      const res = await apiRequest("DELETE", `/api/jobs/${jobId}/stop-viewer`);
+      return res.json();
+    },
+    
+    getViewerStatus: async (jobId: string) => {
+      const res = await apiRequest("GET", `/api/jobs/${jobId}/viewer-status`);
+      return res.json();
+    },
+  },
 };

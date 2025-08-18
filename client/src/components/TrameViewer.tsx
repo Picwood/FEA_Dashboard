@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
 import { Alert, AlertDescription } from './ui/alert';
 import { Loader2, Play, Square, ExternalLink, RefreshCw } from 'lucide-react';
+import { api } from '../lib/api';
 
 interface TrameViewerProps {
   jobId: string;
@@ -23,8 +24,7 @@ export function TrameViewer({ jobId, className = '' }: TrameViewerProps) {
 
   const checkViewerStatus = async () => {
     try {
-      const response = await fetch(`/api/jobs/${jobId}/viewer-status`);
-      const data = await response.json();
+      const data = await api.trame.getViewerStatus(jobId);
       
       if (data.success) {
         setViewerStatus({
@@ -47,11 +47,7 @@ export function TrameViewer({ jobId, className = '' }: TrameViewerProps) {
     setError(null);
     
     try {
-      const response = await fetch(`/api/jobs/${jobId}/start-viewer`, {
-        method: 'POST',
-      });
-      
-      const data = await response.json();
+      const data = await api.trame.startViewer(jobId);
       
       if (data.success) {
         setViewerStatus({
@@ -75,11 +71,7 @@ export function TrameViewer({ jobId, className = '' }: TrameViewerProps) {
     setError(null);
     
     try {
-      const response = await fetch(`/api/jobs/${jobId}/stop-viewer`, {
-        method: 'DELETE',
-      });
-      
-      const data = await response.json();
+      const data = await api.trame.stopViewer(jobId);
       
       if (data.success) {
         setViewerStatus({ status: 'not-running' });
@@ -292,4 +284,4 @@ export function TrameViewer({ jobId, className = '' }: TrameViewerProps) {
       </Card>
     </div>
   );
-} 
+}

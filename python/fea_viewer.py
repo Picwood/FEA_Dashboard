@@ -62,16 +62,8 @@ class FEAViewer:
         self.job_id = job_id
         self.port = port
         
-        # Configure Trame server for Raspberry Pi
-        self.server = get_server(client_type="vue2")
-        try:
-            configure_trame_server(self.server, port)
-        except:
-            # Fallback configuration
-            self.server.config.port = port
-            self.server.config.host = "0.0.0.0"
-            self.server.config.threading = True
-            self.server.config.threading_mode = "threading"
+        # Configure Trame server
+        self.server = get_server(client_type="vue2", host="0.0.0.0", port=port)
         
         self.state, self.ctrl = self.server.state, self.server.controller
         
@@ -127,7 +119,10 @@ class FEAViewer:
         size = pi_settings['render_window_size']
         self.renderWindow.SetSize(size[0], size[1])
         self.renderWindow.SetMultiSamples(pi_settings['multisamples'])
-        self.renderWindow.SetAAFrames(pi_settings['antialiasing'])
+        
+        # SetAAFrames might not be available on all platforms (e.g., Windows)
+        if hasattr(self.renderWindow, 'SetAAFrames'):
+            self.renderWindow.SetAAFrames(pi_settings['antialiasing'])
         
         self.renderWindowInteractor = vtkRenderWindowInteractor()
         self.renderWindowInteractor.SetRenderWindow(self.renderWindow)
@@ -930,8 +925,8 @@ class FEAViewer:
             except Exception as e:
                 print(f"Error loading job files: {e}")
         
-        # Start server
-        self.server.start(port=self.port)
+        # Start server with CLI arguments
+        self.server.start()
 
 def main():
     import signal
@@ -973,4 +968,4 @@ def main():
         sys.exit(1)
 
 if __name__ == "__main__":
-    main() 
+    main()
