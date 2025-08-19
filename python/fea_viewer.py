@@ -11,10 +11,14 @@ import json
 import argparse
 from pathlib import Path
 
-# Configure VTK for headless operation on Windows
+# Configure VTK for headless operation
 os.environ['VTK_SILENCE_GET_VOID_POINTER_WARNINGS'] = '1'
 os.environ['VTK_USE_X'] = '0'  # Disable X11 on Unix-like systems
 os.environ['DISPLAY'] = ''     # Ensure no display is used
+# Additional VTK headless configuration for Raspberry Pi
+os.environ['MESA_GL_VERSION_OVERRIDE'] = '3.3'
+os.environ['MESA_GLSL_VERSION_OVERRIDE'] = '330'
+os.environ['LIBGL_ALWAYS_SOFTWARE'] = '1'
 
 import numpy as np
 import pandas as pd
@@ -24,8 +28,14 @@ from vtkmodules.util import vtkConstants
 from vtkmodules.vtkCommonCore import vtkIdList, vtkLookupTable, vtkPoints
 from vtkmodules.vtkCommonDataModel import vtkCellArray, vtkUnstructuredGrid
 from vtkmodules.vtkFiltersCore import vtkThreshold
-from vtkmodules.vtkIOXML import vtkXMLUnstructuredGridWriter, vtkXMLUnstructuredGridReader
-from vtkmodules.vtkIOLegacy import vtkUnstructuredGridReader
+from vtkmodules.vtkIOXML import (
+    vtkXMLUnstructuredGridWriter, 
+    vtkXMLUnstructuredGridReader,
+    vtkXMLPolyDataReader,
+    vtkXMLDataReader
+)
+from vtkmodules.vtkIOLegacy import vtkUnstructuredGridReader, vtkPolyDataReader
+from vtkmodules.vtkFiltersGeometry import vtkGeometryFilter
 
 # VTK Rendering imports
 from vtkmodules.vtkInteractionStyle import vtkInteractorStyleSwitch  # noqa
@@ -92,9 +102,15 @@ class FEAViewer:
         # Render window setup for headless/server mode
         self.renderWindow = vtkRenderWindow()
         self.renderWindow.AddRenderer(self.renderer)
-        # Configure for headless rendering
+        # Configure for headless rendering on Raspberry Pi
         self.renderWindow.SetOffScreenRendering(True)
         self.renderWindow.SetShowWindow(False)
+        # Force software rendering for better Raspberry Pi compatibility
+        try:
+            self.renderWindow.SetUseOffScreenBuffers(True)
+        except AttributeError:
+            # Method might not be available in all VTK versions
+            pass
         
         self.renderWindowInteractor = vtkRenderWindowInteractor()
         self.renderWindowInteractor.SetRenderWindow(self.renderWindow)
@@ -517,24 +533,66 @@ class FEAViewer:
             self.ctrl.view_update()
 
     def load_vtk_file(self, vtk_file_path):
-        """Load VTK file (either .vtk or .vtp format)"""
+        """Load VTK file with intelligent format detection"""
         try:
             file_ext = vtk_file_path.suffix.lower()
+            print(f"Loading VTK file: {vtk_file_path} (extension: {file_ext})")
+            
+            # Try different readers based on file extension and content
+            readers_to_try = []
             
             if file_ext == '.vtp':
-                # XML format
-                reader = vtkXMLUnstructuredGridReader()
+                # VTP files can contain PolyData or UnstructuredGrid
+                readers_to_try = [
+                    ('XMLPolyData', vtkXMLPolyDataReader()),
+                    ('XMLUnstructuredGrid', vtkXMLUnstructuredGridReader())
+                ]
             elif file_ext == '.vtk':
-                # Legacy format
-                reader = vtkUnstructuredGridReader()
+                # Legacy VTK files - try UnstructuredGrid first, then PolyData
+                readers_to_try = [
+                    ('LegacyUnstructuredGrid', vtkUnstructuredGridReader()),
+                    ('LegacyPolyData', vtkPolyDataReader())
+                ]
             else:
                 raise ValueError(f"Unsupported file format: {file_ext}")
             
-            reader.SetFileName(str(vtk_file_path))
-            reader.Update()
+            # Try each reader until one works
+            data_loaded = None
+            successful_reader = None
             
-            vtu = reader.GetOutput()
-            self.vtk_grid.ShallowCopy(vtu)
+            for reader_name, reader in readers_to_try:
+                try:
+                    print(f"Trying {reader_name} reader...")
+                    reader.SetFileName(str(vtk_file_path))
+                    reader.Update()
+                    
+                    output = reader.GetOutput()
+                    if output and output.GetNumberOfPoints() > 0:
+                        print(f"Successfully read with {reader_name} reader")
+                        print(f"  Points: {output.GetNumberOfPoints()}")
+                        print(f"  Cells: {output.GetNumberOfCells()}")
+                        data_loaded = output
+                        successful_reader = reader_name
+                        break
+                    else:
+                        print(f"  {reader_name} reader produced empty output")
+                        
+                except Exception as e:
+                    print(f"  {reader_name} reader failed: {e}")
+                    continue
+            
+            if not data_loaded:
+                raise ValueError(f"Could not read file with any available reader")
+            
+            # Convert PolyData to UnstructuredGrid if necessary
+            if 'PolyData' in successful_reader:
+                print("Converting PolyData to UnstructuredGrid...")
+                # PolyData can be used directly in many cases, but for consistency
+                # we'll work with it as-is and handle the difference in mappers
+                self.vtk_grid.ShallowCopy(data_loaded)
+            else:
+                # Already UnstructuredGrid
+                self.vtk_grid.ShallowCopy(data_loaded)
             
             # Analyze available data arrays
             self.analyze_data_arrays()
@@ -546,10 +604,13 @@ class FEAViewer:
                 self.state.mesh_status = 1
             
             self.renderer.ResetCamera()
+            print(f"Successfully loaded VTK file with {successful_reader} reader")
             return True
             
         except Exception as e:
             print(f"Error loading VTK file: {e}")
+            import traceback
+            traceback.print_exc()
             return False
 
     def analyze_data_arrays(self):
@@ -870,31 +931,38 @@ class FEAViewer:
         # Auto-load job files if job_id is provided
         if self.job_id:
             try:
+                print(f"Loading files for job ID: {self.job_id}")
                 files = self.load_job_files(self.job_id)
+                print(f"Found files: {files}")
                 
                 # Try to load VTK file first (preferred method)
                 if files['vtk']:
+                    print(f"Attempting to load VTK file: {files['vtk']}")
                     success = self.load_vtk_file(files['vtk'])
                     if success:
-                        print(f"Successfully loaded VTK file for job {self.job_id}")
+                        print(f"✓ Successfully loaded VTK file for job {self.job_id}")
                     else:
-                        print(f"Failed to load VTK file for job {self.job_id}")
+                        print(f"✗ Failed to load VTK file for job {self.job_id}")
                 # Fallback to text files
                 elif files['nodes'] and files['elements']:
+                    print(f"Attempting to load FEA text files: nodes={files['nodes']}, elements={files['elements']}, field={files['field']}")
                     success = self.process_fea_files(
                         files['nodes'], 
                         files['elements'], 
                         files['field']
                     )
                     if success:
-                        print(f"Successfully loaded FEA text data for job {self.job_id}")
+                        print(f"✓ Successfully loaded FEA text data for job {self.job_id}")
                     else:
-                        print(f"Failed to load FEA text data for job {self.job_id}")
+                        print(f"✗ Failed to load FEA text data for job {self.job_id}")
                 else:
-                    print(f"No suitable FEA files found for job {self.job_id}")
+                    print(f"⚠ No suitable FEA files found for job {self.job_id}")
+                    print(f"  Available files: {list(files.values())}")
                     
             except Exception as e:
-                print(f"Error loading job files: {e}")
+                print(f"✗ Error loading job files: {e}")
+                import traceback
+                traceback.print_exc()
         
         # Start server
         self.server.start(port=self.port)
